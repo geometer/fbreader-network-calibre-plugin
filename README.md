@@ -1,10 +1,10 @@
-fbreader-network-calibre-plugin
-===============================
+FBReader® Book Network Calibre plugin
+=====================================
 
-Access FBReader® Book Network from Calibre
+Access the Book Network from Calibre
 
-FBReader® Book Network (https://books.fbreader.org/) is a cloud storage for eBooks based on Google Drive
-Calibre (http://calibre-ebook.com/) is a popular eBook manager for your local computer
+[FBReader® Book Network](https://books.fbreader.org/) is a cloud storage for eBooks based on Google Drive
+[Calibre](http://calibre-ebook.com/) is a popular eBook manager for your local computer
 
 Implemented by November 27, 2014:
 * Download books from the Book Network and add them immediately to Calibre Library
