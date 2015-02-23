@@ -5,29 +5,25 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 __license__ = 'MIT'
 __copyright__ = '2014, FBReader.ORG Limited <support@fbreader.org>'
 
-from calibre.gui2.store.basic_config import BasicStoreConfig
-from calibre.gui2.store.opensearch_store import OpenSearchOPDSStore
-from calibre.gui2.store.web_store_dialog import WebStoreDialog
+from PyQt5.Qt import (
+	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl)
+
+from contextlib import closing
+
+from cookielib import Cookie
+
+from lxml import etree
 
 from calibre import (browser, guess_extension)
 from calibre.gui2 import open_url
 from calibre.gui2.store import StorePlugin
 from calibre.gui2.store.search_result import SearchResult
 from calibre.gui2.store.web_store_dialog import WebStoreDialog
+from calibre.gui2.store.basic_config import BasicStoreConfig
+from calibre.gui2.store.opensearch_store import OpenSearchOPDSStore
 from calibre.utils.opensearch.description import Description
 from calibre.utils.opensearch.query import Query
-
-from contextlib import closing
-
-from lxml import etree
-
 from calibre.web.jsbrowser.browser import Browser
-from calibre.ptempfile import PersistentTemporaryFile
-
-from mechanize import MozillaCookieJar
-
-from PyQt5.Qt import (
-	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl)
 
 
 class MyNetworkCookieJar(QNetworkCookieJar):
@@ -53,37 +49,51 @@ class MyNetworkCookieJar(QNetworkCookieJar):
 		tmp = self.storage.value("cookies")
 		if not tmp:
 			return
-#		cookies = tmp.toByteArray()
 		cookieList = QNetworkCookie.parseCookies(tmp)
 		self.setAllCookies(cookieList)
 
-	def save_cookies_in_cf(self, cf):
-		'''
-		Writes QNetworkCookies to Mozilla cookie .txt file.
-		'''
-
-		cf.write('# Netscape HTTP Cookie File\n\n')
+	def py_cookies_internal(self):
 		for c in self.allCookies():
-			cookie = []
-			domain = unicode(c.domain())
-
-			cookie.append(domain)
-			cookie.append('TRUE' if domain.startswith('.') else 'FALSE')
-			cookie.append(unicode(c.path()))
-			cookie.append('TRUE' if c.isSecure() else 'FALSE')
-			cookie.append(unicode(c.expirationDate().toTime_t()))
-			cookie.append(unicode(c.name()))
-			cookie.append(unicode(c.value()))
-
-			cf.write('\t'.join(cookie))
-			cf.write('\n')
-
-		cf.close()
+			name, value = map(bytes, (c.name(), c.value()))
+			domain = bytes(c.domain())
+			initial_dot = domain_specified = domain.startswith(b'.')
+			secure = bool(c.isSecure())
+			path = unicode(c.path()).strip().encode('utf-8')
+			expires = c.expirationDate()
+			is_session_cookie = False
+			if expires.isValid():
+				expires = expires.toTime_t()
+			else:
+				expires = None
+				is_session_cookie = True
+			path_specified = True
+			if not path:
+				path = b'/'
+				path_specified = False
+			c = Cookie(0,  # version
+					name, value,
+					None,  # port
+					False,  # port specified
+					domain, domain_specified, initial_dot, path,
+					path_specified,
+					secure, expires, is_session_cookie,
+					None,  # Comment
+					None,  # Comment URL
+					{}  # rest
+			)
+			yield c
+	@property
+	def py_cookies(self):
+		'''
+		Return all the cookies set currently as :class:`Cookie` objects.
+		Returns expired cookies as well.
+		'''
+		return list(self.py_cookies_internal())
 
 
 class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 	web_url = 'https://books.fbreader.org/catalog'
-	open_search_url = 'https://books.fbreader.org/static/opensearch.xml'
+#	open_search_url = 'https://books.fbreader.org/static/opensearch.xml'
 
 	def open(self, parent=None, detail_item=None, external=False):
 
@@ -101,35 +111,20 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 			d.exec_()
 
 
-	def create_browser_1(self):
+	def create_browser_with_cookies(self):
 		br = browser()
-		cf = PersistentTemporaryFile(suffix='.txt')
-		MyNetworkCookieJar().save_cookies_in_cf(cf)
-		cj = MozillaCookieJar()
-		cj.load(cf.name)
-		br.set_cookiejar(cj)
+		for cookie in MyNetworkCookieJar().py_cookies:
+			br.cookiejar.set_cookie(cookie)
 		return br
 
 
 	def search(self, query, max_results=10, timeout=60):
-		if not hasattr(self, 'open_search_url'):
-			return
-
-		description = Description(self.open_search_url)
-		url_template = description.get_best_template()
-		if not url_template:
-			return
-		oquery = Query(url_template)
-
-		# set up initial values
-		oquery.searchTerms = query
-		oquery.count = max_results
-		url = oquery.url()
-
+		url = "https://books.fbreader.org/opds/search/" + query
 		counter = max_results
-		br = self.create_browser_1()
+		br = self.create_browser_with_cookies()
 		with closing(br.open(url, timeout=timeout)) as f:
-			doc = etree.fromstring(f.read())
+			s = f.read()
+			doc = etree.fromstring(s)
 			for data in doc.xpath('//*[local-name() = "entry"]'):
 				if counter <= 0:
 					break
