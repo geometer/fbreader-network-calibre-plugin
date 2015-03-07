@@ -5,6 +5,8 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 __license__ = 'MIT'
 __copyright__ = '2014, FBReader.ORG Limited <support@fbreader.org>'
 
+import platform
+
 from PyQt5.Qt import (
 	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl)
 
@@ -92,6 +94,7 @@ class MyNetworkCookieJar(QNetworkCookieJar):
 
 
 class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
+	plugin_version = "1.0"
 	web_url = 'https://books.fbreader.org/catalog'
 #	open_search_url = 'https://books.fbreader.org/static/opensearch.xml'
 
@@ -112,7 +115,8 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 
 
 	def create_browser_with_cookies(self):
-		br = browser()
+		user_agent = "FBReader Calibre Plugin/" + FBReaderNetworkStore.plugin_version + " " + platform.system()
+		br = browser(user_agent=user_agent)
 		for cookie in MyNetworkCookieJar().py_cookies:
 			br.cookiejar.set_cookie(cookie)
 		return br
