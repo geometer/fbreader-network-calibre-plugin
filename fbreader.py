@@ -26,6 +26,8 @@ from calibre.gui2.store.opensearch_store import OpenSearchOPDSStore
 from calibre.utils.opensearch.description import Description
 from calibre.utils.opensearch.query import Query
 from calibre.web.jsbrowser.browser import Browser
+from calibre.utils.magick.draw import thumbnail
+
 
 
 class MyNetworkCookieJar(QNetworkCookieJar):
@@ -97,6 +99,7 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 	plugin_version = "1.0"
 	web_url = 'https://books.fbreader.org/catalog'
 #	open_search_url = 'https://books.fbreader.org/static/opensearch.xml'
+	base_url = "https://books.fbreader.org"
 
 	def open(self, parent=None, detail_item=None, external=False):
 
@@ -169,14 +172,15 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 					price = ''.join(price_e.xpath('.//text()')).strip()
 					s.price = currency_code + ' ' + price
 					s.price = s.price.strip()
-
+				if s.cover_url:
+					if s.cover_url[0] == "/":
+						s.cover_url = self.base_url + s.cover_url
+					br1 = self.create_browser_with_cookies()
+					with closing(br1.open(s.cover_url, timeout=timeout)) as f:
+						s.cover_data = f.read()
+					s.cover_data = thumbnail(s.cover_data, 64, 64)[2]
+					s.cover_url = None
 				yield s
-
-
-
-
-
-
 
 
 
