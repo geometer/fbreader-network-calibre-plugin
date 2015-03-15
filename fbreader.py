@@ -173,14 +173,19 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 					s.price = currency_code + ' ' + price
 					s.price = s.price.strip()
 				if s.cover_url:
-					if s.cover_url[0] == "/":
-						s.cover_url = self.base_url + s.cover_url
-					br1 = self.create_browser_with_cookies()
-					with closing(br1.open(s.cover_url, timeout=timeout)) as f:
-						s.cover_data = f.read()
-					s.cover_data = thumbnail(s.cover_data, 64, 64)[2]
+					s.cover_bak = s.cover_url
 					s.cover_url = None
 				yield s
+
+	def get_details(self, search_result, timeout):
+		if search_result.cover_bak:
+				if search_result.cover_bak[0] == "/":
+					search_result.cover_bak = self.base_url + search_result.cover_bak
+				br1 = self.create_browser_with_cookies()
+				with closing(br1.open(search_result.cover_bak, timeout=timeout)) as f:
+					search_result.cover_data = f.read()
+				search_result.cover_data = thumbnail(search_result.cover_data, 64, 64)[2]
+
 
 
 
