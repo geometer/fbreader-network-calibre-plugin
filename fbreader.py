@@ -128,58 +128,72 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 	def search(self, query, max_results=10, timeout=60):
 		url = "https://books.fbreader.org/opds/search/" + query
 		counter = max_results
+		counter = 100
 		br = self.create_browser_with_cookies()
-		with closing(br.open(url, timeout=timeout)) as f:
-			s = f.read()
-			doc = etree.fromstring(s)
-			for data in doc.xpath('//*[local-name() = "entry"]'):
-				if counter <= 0:
-					break
-
-				counter -= 1
-
-				s = SearchResult()
-
-				s.detail_item = ''.join(data.xpath('./*[local-name() = "id"]/text()')).strip()
-
-				for link in data.xpath('./*[local-name() = "link"]'):
+		while url != None and counter > 0:
+			with closing(br.open(url, timeout=timeout)) as f:
+				s = f.read()
+				doc = etree.fromstring(s)
+				url = None
+				for link in doc.xpath('//*[local-name() = "link"]'):
 					rel = link.get('rel')
 					href = link.get('href')
 					type = link.get('type')
 
 					if rel and href and type:
-						if 'http://opds-spec.org/thumbnail' in rel:
-							s.cover_url = href
-						elif 'http://opds-spec.org/image/thumbnail' in rel:
-							s.cover_url = href
-						elif 'http://opds-spec.org/acquisition/buy' in rel:
-							s.detail_item = href
-						elif 'http://opds-spec.org/acquisition' in rel:
-							if type:
-								ext = guess_extension(type)
-								if type == 'application/fb2+xml':
-									ext = '.fb2'
-								if ext:
-									ext = ext[1:].upper().strip()
-									if href[0] == "/":
-										href = self.base_url + href
-									s.downloads[ext] = href
-				s.formats = ', '.join(s.downloads.keys()).strip()
+						if rel == 'next' and type == 'application/atom+xml':
+							if href[0] == "/":
+								href = self.base_url + href
+							url = href
 
-				s.title = ' '.join(data.xpath('./*[local-name() = "title"]//text()')).strip()
-				s.author = ', '.join(data.xpath('./*[local-name() = "author"]//*[local-name() = "name"]//text()')).strip()
+				for data in doc.xpath('//*[local-name() = "entry"]'):
+					if counter <= 0:
+						break
 
-				price_e = data.xpath('.//*[local-name() = "price"][1]')
-				if price_e:
-					price_e = price_e[0]
-					currency_code = price_e.get('currencycode', '')
-					price = ''.join(price_e.xpath('.//text()')).strip()
-					s.price = currency_code + ' ' + price
-					s.price = s.price.strip()
-				if s.cover_url:
-					s.cover_bak = s.cover_url
-					s.cover_url = None
-				yield s
+					counter -= 1
+
+					s = SearchResult()
+
+					s.detail_item = ''.join(data.xpath('./*[local-name() = "id"]/text()')).strip()
+
+					for link in data.xpath('./*[local-name() = "link"]'):
+						rel = link.get('rel')
+						href = link.get('href')
+						type = link.get('type')
+
+						if rel and href and type:
+							if 'http://opds-spec.org/thumbnail' in rel:
+								s.cover_url = href
+							elif 'http://opds-spec.org/image/thumbnail' in rel:
+								s.cover_url = href
+							elif 'http://opds-spec.org/acquisition/buy' in rel:
+								s.detail_item = href
+							elif 'http://opds-spec.org/acquisition' in rel:
+								if type:
+									ext = guess_extension(type)
+									if type == 'application/fb2+xml':
+										ext = '.fb2'
+									if ext:
+										ext = ext[1:].upper().strip()
+										if href[0] == "/":
+											href = self.base_url + href
+										s.downloads[ext] = href
+					s.formats = ', '.join(s.downloads.keys()).strip()
+
+					s.title = ' '.join(data.xpath('./*[local-name() = "title"]//text()')).strip()
+					s.author = ', '.join(data.xpath('./*[local-name() = "author"]//*[local-name() = "name"]//text()')).strip()
+
+					price_e = data.xpath('.//*[local-name() = "price"][1]')
+					if price_e:
+						price_e = price_e[0]
+						currency_code = price_e.get('currencycode', '')
+						price = ''.join(price_e.xpath('.//text()')).strip()
+						s.price = currency_code + ' ' + price
+						s.price = s.price.strip()
+					if s.cover_url:
+						s.cover_bak = s.cover_url
+						s.cover_url = None
+					yield s
 
 	def get_details(self, search_result, timeout):
 		if search_result.cover_bak:
