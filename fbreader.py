@@ -128,7 +128,6 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 	def search(self, query, max_results=10, timeout=60):
 		url = "https://books.fbreader.org/opds/search/" + query
 		counter = max_results
-		counter = 100
 		br = self.create_browser_with_cookies()
 		while url != None and counter > 0:
 			with closing(br.open(url, timeout=timeout)) as f:
