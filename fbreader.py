@@ -157,8 +157,12 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 						elif 'http://opds-spec.org/acquisition' in rel:
 							if type:
 								ext = guess_extension(type)
+								if type == 'application/fb2+xml':
+									ext = '.fb2'
 								if ext:
 									ext = ext[1:].upper().strip()
+									if href[0] == "/":
+										href = self.base_url + href
 									s.downloads[ext] = href
 				s.formats = ', '.join(s.downloads.keys()).strip()
 
