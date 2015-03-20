@@ -98,7 +98,7 @@ class MyNetworkCookieJar(QNetworkCookieJar):
 class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 	plugin_version = "1.0"
 	web_url = 'https://books.fbreader.org/catalog'
-#	open_search_url = 'https://books.fbreader.org/static/opensearch.xml'
+	open_search_url = 'https://books.fbreader.org/opensearch.xml'
 	base_url = "https://books.fbreader.org"
 
 	def open(self, parent=None, detail_item=None, external=False):
@@ -126,7 +126,17 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 
 
 	def search(self, query, max_results=10, timeout=60):
-		url = "https://books.fbreader.org/opds/search/" + query
+		description = Description(self.open_search_url)
+		url_template = description.get_best_template()
+		if not url_template:
+			return
+		oquery = Query(url_template)
+
+		# set up initial values
+		oquery.searchTerms = query
+		oquery.count = max_results
+		url = oquery.url()
+
 		counter = max_results
 		br = self.create_browser_with_cookies()
 		while url != None and counter > 0:
