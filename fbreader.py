@@ -29,7 +29,6 @@ from calibre.web.jsbrowser.browser import Browser
 from calibre.utils.magick.draw import thumbnail
 
 
-
 class MyNetworkCookieJar(QNetworkCookieJar):
 	def __init__(self, parent=None):
 		QNetworkCookieJar.__init__(self, parent)
@@ -165,6 +164,8 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 
 					s.detail_item = ''.join(data.xpath('./*[local-name() = "id"]/text()')).strip()
 
+					drm = False
+
 					for link in data.xpath('./*[local-name() = "link"]'):
 						rel = link.get('rel')
 						href = link.get('href')
@@ -187,10 +188,14 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 										if href[0] == "/":
 											href = self.base_url + href
 										s.downloads[ext] = href
+								for enc in link.xpath('./*[local-name() = "encryption_method"]'):
+									drm = True
 					s.formats = ', '.join(s.downloads.keys()).strip()
 
 					s.title = ' '.join(data.xpath('./*[local-name() = "title"]//text()')).strip()
 					s.author = ', '.join(data.xpath('./*[local-name() = "author"]//*[local-name() = "name"]//text()')).strip()
+
+					s.drm = SearchResult.DRM_LOCKED if drm else SearchResult.DRM_UNLOCKED
 
 					price_e = data.xpath('.//*[local-name() = "price"][1]')
 					if price_e:
@@ -212,11 +217,6 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 				with closing(br1.open(search_result.cover_bak, timeout=timeout)) as f:
 					search_result.cover_data = f.read()
 				search_result.cover_data = thumbnail(search_result.cover_data, 64, 64)[2]
-
-
-
-
-
 
 
 
