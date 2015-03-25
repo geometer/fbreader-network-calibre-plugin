@@ -116,7 +116,7 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 			d.exec_()
 
 
-	def create_browser_with_cookies(self):
+	def create_browser(self):
 		user_agent = "FBReader Calibre Plugin/" + FBReaderNetworkStore.plugin_version + " " + platform.system()
 		br = browser(user_agent=user_agent)
 		for cookie in MyNetworkCookieJar().py_cookies:
@@ -137,7 +137,7 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 		url = oquery.url()
 
 		counter = max_results
-		br = self.create_browser_with_cookies()
+		br = self.create_browser()
 		while url != None and counter > 0:
 			with closing(br.open(url, timeout=timeout)) as f:
 				s = f.read()
@@ -213,7 +213,7 @@ class FBReaderNetworkStore(BasicStoreConfig, OpenSearchOPDSStore):
 		if search_result.cover_bak:
 				if search_result.cover_bak[0] == "/":
 					search_result.cover_bak = self.base_url + search_result.cover_bak
-				br1 = self.create_browser_with_cookies()
+				br1 = self.create_browser()
 				with closing(br1.open(search_result.cover_bak, timeout=timeout)) as f:
 					search_result.cover_data = f.read()
 				search_result.cover_data = thumbnail(search_result.cover_data, 64, 64)[2]
