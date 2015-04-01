@@ -32,9 +32,13 @@ class FBReaderUploadAction(InterfaceAction):
 		self.qaction.triggered.connect(self.upload)
 
 	def upload(self):
+		if self.check_login() == 1:#not authorized
+			self.open()
+		if self.check_login() != 0:
+			return;
 		rows = self.gui.library_view.selectionModel().selectedRows()
 		if not rows or len(rows) == 0:
-			return error_dialog(self.gui, 'No rows selected',
+			return error_dialog(self.gui, 'No books selected',
 								'You must select one or more books to perform this action.', show=True)
 		book_ids = self.gui.library_view.get_selected_ids()
 		db = self.gui.library_view.model().db
@@ -45,7 +49,39 @@ class FBReaderUploadAction(InterfaceAction):
 			for f in formats:
 				path = db.format_abspath(book_id, f, index_is_id=True)
 				self.uploadfile(path)
+				
+	def open(self):
+		from calibre.gui2.store.web_store_dialog import WebStoreDialog
+		d = WebStoreDialog(self.gui, "https://books.fbreader.org/catalog", None, None, create_browser=self.create_browser)
+		d.setWindowTitle("FBReader® Book Network")
+		d.view.cookie_jar = MyNetworkCookieJar()
+		d.view.page().networkAccessManager().setCookieJar(d.view.cookie_jar)
+		d.exec_()
 
+
+	def create_browser(self):
+		from calibre import browser
+		br = browser()
+		for cookie in MyNetworkCookieJar().py_cookies:
+			br.cookiejar.set_cookie(cookie)
+		return br
+				
+	def check_login(self):
+		req = urllib2.Request("https://books.fbreader.org/opds")
+		qjar = MyNetworkCookieJar()
+		jar = CookieJar()
+		for cookie in qjar.py_cookies:
+			jar.set_cookie(cookie)
+		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(jar))
+		req.add_header('X-Accept-Auto-Login', "True")
+		try:
+			response = opener.open(req)
+			return 0
+		except urllib2.HTTPError as e:
+			if e.code == 401:
+				return 1
+		return 2  # What can we do here???
+				
 	def uploadfile(self, path):
 		hasher = hashlib.sha1()
 		with open(path, 'rb') as afile:
