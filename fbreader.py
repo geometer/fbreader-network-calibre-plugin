@@ -13,6 +13,10 @@ from contextlib import closing
 from calibre.gui2 import error_dialog, Dispatcher
 from calibre.gui2.actions import InterfaceAction
 
+from PyQt5.Qt import (
+	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl, QNetworkRequest, QNetworkAccessManager, QHttpMultiPart, QHttpPart, QFile, QIODevice, QVariant)
+from cookielib import CookieJar, Cookie
+
 import hashlib
 import json
 import urllib2
@@ -29,6 +33,7 @@ class FBReaderUploadAction(InterfaceAction):
 	action_type = 'current'
 
 	def genesis(self):
+		self.uploaders = []
 		self.qaction.triggered.connect(self.upload)
 
 	def upload(self):
@@ -54,7 +59,7 @@ class FBReaderUploadAction(InterfaceAction):
 		from calibre.gui2.store.web_store_dialog import WebStoreDialog
 		d = WebStoreDialog(self.gui, "https://books.fbreader.org/catalog", None, None, create_browser=self.create_browser)
 		d.setWindowTitle("FBReader® Book Network")
-		d.view.cookie_jar = MyNetworkCookieJar()
+		d.view.cookie_jar = MyNetworkCookieJar(True)
 		d.view.page().networkAccessManager().setCookieJar(d.view.cookie_jar)
 		d.exec_()
 
@@ -68,7 +73,7 @@ class FBReaderUploadAction(InterfaceAction):
 				
 	def check_login(self):
 		req = urllib2.Request("https://books.fbreader.org/opds")
-		qjar = MyNetworkCookieJar()
+		qjar = MyNetworkCookieJar(False)
 		jar = CookieJar()
 		for cookie in qjar.py_cookies:
 			jar.set_cookie(cookie)
@@ -82,6 +87,7 @@ class FBReaderUploadAction(InterfaceAction):
 				return 1
 		return 2  # What can we do here???
 				
+
 	def uploadfile(self, path):
 		hasher = hashlib.sha1()
 		with open(path, 'rb') as afile:
@@ -92,7 +98,8 @@ class FBReaderUploadAction(InterfaceAction):
 		h = hasher.hexdigest()
 		url = BASE_URL + "app/book.status.by.hash?sha1=" + h #FIXME: how to send post + cookies?
 		req = urllib2.Request(url)
-		qjar = MyNetworkCookieJar()
+		qjar = MyNetworkCookieJar(False)
+
 		jar = CookieJar()
 		for cookie in qjar.py_cookies:
 			jar.set_cookie(cookie)
@@ -107,22 +114,46 @@ class FBReaderUploadAction(InterfaceAction):
 				csrftoken = c.value
 		if not csrftoken:
 			return
+		uploader = Uploader(path, csrftoken, url, self)
+		self.uploaders.append(uploader)
+		uploader.upload()
 
-		#UPLOAD
+class Uploader(QObject):
+	def __init__(self, path,  csrftoken, referer, parent=None):
+		QObject.__init__(self, None)
 		url = BASE_URL + "app/book.upload"
-		#...
+		self.multiPart = QHttpMultiPart(QHttpMultiPart.FormDataType, self)
+		self.filePart = QHttpPart()
+		self.filePart.setHeader(QNetworkRequest.ContentDispositionHeader, QVariant("form-data; name=\"file\""));
+		self.qfile = QFile(path, self)
+		self.qfile.open(QIODevice.ReadOnly)
+		self.filePart.setBodyDevice(self.qfile)
+		self.multiPart.append(self.filePart)
+		self.request = QNetworkRequest(QUrl(url))
+		self.request.setRawHeader("X-CSRFToken", csrftoken)
+		self.request.setRawHeader("Referer", referer);
+		self.manager = QNetworkAccessManager(self)
+		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
+
+
+	def onFinished(self):
+		print(self.sender().error())
+		print(self.sender().readAll())
+
+	def upload(self):
+
+		self.reply = self.manager.post(self.request, self.multiPart)
+		self.reply.finished.connect(self.onFinished)
 
 
 
 
 #================= from another plugin
-from PyQt5.Qt import (
-	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl)
-from cookielib import CookieJar, Cookie
 
 class MyNetworkCookieJar(QNetworkCookieJar):
-	def __init__(self, parent=None):
+	def __init__(self, writable, parent=None):
 		QNetworkCookieJar.__init__(self, parent)
+		self.readonly = not writable
 		self.storage = QSettings(QSettings.IniFormat, QSettings.UserScope, "fbreader", "plugin")
 		self.loadCookies()
 
@@ -132,6 +163,8 @@ class MyNetworkCookieJar(QNetworkCookieJar):
 		return res
 
 	def saveCookies(self):
+		if self.readonly:
+			return
 		cookies = QByteArray()
 		for cookie in self.allCookies():
 			if not cookie.isSessionCookie():
