@@ -120,7 +120,7 @@ class FBReaderUploadAction(InterfaceAction):
 
 class Uploader(QObject):
 	def __init__(self, path,  csrftoken, referer, parent=None):
-		QObject.__init__(self, None)
+		QObject.__init__(self, parent)
 		url = BASE_URL + "app/book.upload"
 		self.multiPart = QHttpMultiPart(QHttpMultiPart.FormDataType, self)
 		self.filePart = QHttpPart()
