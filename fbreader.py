@@ -95,16 +95,6 @@ class FBReaderUploadAction(InterfaceAction):
 		return 2  # What can we do here???
 
 
-	def uploadfile(self, path):
-		uploader = Uploader(path, self)
-		self.uploaders.append(uploader)
-		uploader.finished.connect(self.onFinished)
-		uploader.upload()
-
-	def onFinished(self):
-		uploader = self.sender()
-		print(uploader.status)
-
 class StatusDialog(QDialog):
 
 	LONG_TEXT = "Already Exists"
