@@ -9,3 +9,4 @@ class ActionUploadToFBReader(InterfaceActionBase):
     name = 'Upload to FBReader'
     actual_plugin = 'calibre_plugins.upload_fbreader.fbreader:FBReaderUploadAction'
     description = _('Upload to books.fbreader.org')
+    author = 'FBReader.ORG Limited'

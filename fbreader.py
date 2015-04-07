@@ -14,7 +14,7 @@ from calibre.gui2 import error_dialog, Dispatcher
 from calibre.gui2.actions import InterfaceAction
 
 from PyQt5.Qt import (
-	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl, QNetworkRequest, QNetworkAccessManager, QHttpMultiPart, QHttpPart, QFile, QIODevice, QVariant, pyqtSignal, QDialog, QMessageBox, QVBoxLayout, QTableWidget, QTableWidgetItem, QSizePolicy, QHeaderView, QDialogButtonBox, Qt, QColor)
+	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl, QNetworkRequest, QNetworkAccessManager, QHttpMultiPart, QHttpPart, QFile, QIODevice, QVariant, pyqtSignal, QDialog, QMessageBox, QVBoxLayout, QTableWidget, QTableWidgetItem, QSizePolicy, QHeaderView, QDialogButtonBox, Qt, QColor, QPixmap, QIcon)
 from cookielib import CookieJar, Cookie
 
 import hashlib
@@ -33,6 +33,10 @@ class FBReaderUploadAction(InterfaceAction):
 	action_type = 'current'
 
 	def genesis(self):
+		pixmap = QPixmap()
+		pixmap.loadFromData(self.load_resources(['fbreader.png']).itervalues().next())
+		icon = QIcon(pixmap)
+		self.qaction.setIcon(icon)
 		self.qaction.triggered.connect(self.upload)
 
 	def upload(self):
