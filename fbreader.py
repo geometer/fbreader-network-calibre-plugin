@@ -13,8 +13,7 @@ from contextlib import closing
 from calibre.gui2 import error_dialog, Dispatcher
 from calibre.gui2.actions import InterfaceAction
 
-from PyQt5.Qt import (
-	QObject, QSettings, QByteArray, QNetworkCookie, QNetworkCookieJar, QUrl, QNetworkRequest, QNetworkAccessManager, QHttpMultiPart, QHttpPart, QFile, QIODevice, QVariant, pyqtSignal, QDialog, QMessageBox, QVBoxLayout, QTableWidget, QTableWidgetItem, QSizePolicy, QHeaderView, QDialogButtonBox, Qt, QColor, QPixmap, QIcon)
+from PyQt5.Qt import *
 from cookielib import CookieJar, Cookie
 
 import hashlib
@@ -44,15 +43,19 @@ class FBReaderUploadAction(InterfaceAction):
 		if not rows or len(rows) == 0:
 			return error_dialog(self.gui, 'No books selected',
 								'You must select one or more books to perform this action.', show=True)
-		if self.check_login() == 1:#not authorized
+		login = self.check_login()
+		if login == 1:#not authorized
 			msgBox = QMessageBox()
 			msgBox.setWindowTitle("Not authorized")
 			msgBox.setText("Would you kindly login into books.fbreader.org?")
 			msgBox.exec_()
 			self.open()
-		if self.check_login() != 0:
-			return error_dialog(self.gui, 'You still not authorized!',
-								'Shame on you!', show=True)
+			if self.check_login() != 0:
+				return error_dialog(self.gui, 'You still not authorized!',
+									'Shame on you!', show=True)
+		elif login != 0:
+			return error_dialog(self.gui, 'Error',
+									'Something awful happened!', show=True)
 		book_ids = self.gui.library_view.get_selected_ids()
 		db = self.gui.library_view.model().db
 
@@ -96,12 +99,12 @@ class FBReaderUploadAction(InterfaceAction):
 		except urllib2.HTTPError as e:
 			if e.code == 401:
 				return 1
+		except:
+			return 2
 		return 2  # What can we do here???
 
 
 class StatusDialog(QDialog):
-
-	LONG_TEXT = "Already Exists"
 
 	def __init__(self, paths, parent = None):
 		QDialog.__init__(self, parent)
@@ -113,30 +116,34 @@ class StatusDialog(QDialog):
 
 		self.setWindowTitle("Uploading status")
 		layout = QVBoxLayout()
-		self.tableWidget = QTableWidget(len(paths), 2, self)
-		self.tableWidget.setHorizontalHeaderLabels(("file", "status"))
+		self.tableWidget = QTableWidget(len(paths), 3, self)
+		self.tableWidget.setHorizontalHeaderLabels(("Upload?","file", "status"))
 		for j in xrange(len(self.paths)):
 			path = paths[j]
+			cb = QCheckBox()
+			cb.setChecked(False)
+			cb.setStyleSheet("margin-left:25%; margin-right:25%;")
+			item = QTableWidgetItem()
+			item.setFlags(Qt.NoItemFlags)
+			self.tableWidget.setItem(j, 0, item)
+			self.tableWidget.setCellWidget(j, 0, cb)
 			item = QTableWidgetItem(os.path.basename(path))
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
-			self.tableWidget.setItem(j, 0, item)
-			item = QTableWidgetItem(self.LONG_TEXT)
+			self.tableWidget.setItem(j, 1, item)
+			item = QTableWidgetItem("Uploading")
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
-			self.tableWidget.setItem(j, 1, item)
+			self.tableWidget.setItem(j, 2, item)
 		self.tableWidget.verticalHeader().hide()
 		self.tableWidget.resizeColumnsToContents()
 		layout.addWidget(self.tableWidget)
 		box = QDialogButtonBox(QDialogButtonBox.Ok, Qt.Horizontal)
 		layout.addWidget(box)
+		self.tableWidget.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+		self.tableWidget.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+		self.tableWidget.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 		self.setLayout(layout)
-		width = self.width() - self.tableWidget.width() + self.tableWidget.horizontalHeader().length() + 40
-		height = self.height() - self.tableWidget.height() + self.tableWidget.verticalHeader().length()  + box.height() + 50
-		self.setFixedSize(width, min(height, 400))#FIXME
-		for j in xrange(len(self.paths)):
-			self.tableWidget.item(j, 1).setText("Uploading")
-
 
 		self.ok = box.button(QDialogButtonBox.Ok)
 		self.ok.setEnabled(False)
@@ -145,44 +152,42 @@ class StatusDialog(QDialog):
 			uploader = Uploader(p, self)
 			self.uploaders.append(uploader)
 			uploader.finished.connect(self.onFinished)
-			uploader.upload()
+#			uploader.upload()
 
 	def onFinished(self):
 		uploader = self.sender()
-		print(uploader.path)
-		n = -1
-		for i in xrange(len(self.paths)):
-			if self.paths[i] == uploader.path:
-				n = i
-		text = self.tableWidget.item(n, 1).text()
-		color = self.tableWidget.item(n, 1).background().color()
-		if uploader.status == uploader.Status.uploaded:
-			text = "Uploaded"
-			color = QColor(127, 255, 127)
-		elif uploader.status == uploader.Status.exists:
-			text = "Already Exists"
-			color = QColor(255, 255, 127)
-		elif uploader.status == uploader.Status.error:
-			text = "Error"
-			color = QColor(255, 127, 127)
-		self.tableWidget.item(n, 1).setText(text)
-		self.tableWidget.item(n, 1).setBackground(color)
-		self.tableWidget.item(n, 0).setBackground(color)
-		self.todo -= 1
-		if self.todo == 0:
-			self.allowedToClose = True
-			self.ok.setEnabled(True)
+##		print(uploader.path)
+##		n = -1
+##		for i in xrange(len(self.paths)):
+##			if self.paths[i] == uploader.path:
+##				n = i
+##		text = self.tableWidget.item(n, 1).text()
+##		color = self.tableWidget.item(n, 1).background().color()
+##		if uploader.status == uploader.Status.uploaded:
+##			text = "Uploaded"
+##			color = QColor(127, 255, 127)
+##		elif uploader.status == uploader.Status.exists:
+##			text = "Already Exists"
+##			color = QColor(255, 255, 127)
+##		elif uploader.status == uploader.Status.error:
+##			text = "Error"
+##			color = QColor(255, 127, 127)
+##		self.tableWidget.item(n, 1).setText(text)
+##		self.tableWidget.item(n, 1).setBackground(color)
+##		self.tableWidget.item(n, 0).setBackground(color)
+##		self.todo -= 1
+##		if self.todo == 0:
+##			self.allowedToClose = True
+##			self.ok.setEnabled(True)
 
-	def closeEvent(self, e):
-		if self.allowedToClose:
-			QDialog.closeEvent(self, e)
-		else:
-			e.ignore()
+class UploadController(QObject):
 
-	def reject(self):
-		if self.allowedToClose:
-			QDialog.reject(self)
+	finished = pyqtSignal(int, int)    #n, error_code
+	progress = pyqtSignal(int, float)  #n, progress
 
+	def __init__(self, parent=None):
+		QObject.__init__(self, parent)
+		
 
 
 
