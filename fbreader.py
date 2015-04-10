@@ -108,6 +108,12 @@ class FBReaderUploadAction(InterfaceAction):
 
 class StatusDialog(QDialog):
 
+	color_lightgood = QColor(192, 255, 192)
+	color_darkgood = QColor(0, 80, 0)
+
+	color_lightbad = QColor(255, 192, 192)
+	color_darkbad = QColor(80, 0, 0)
+
 	def __init__(self, controller, paths, parent = None):
 		QDialog.__init__(self, parent)
 		self.uploaders = []
@@ -124,7 +130,6 @@ class StatusDialog(QDialog):
 		for j in xrange(len(self.paths)):
 			path = paths[j]
 			cb = QCheckBox()
-			cb.setChecked(True)
 			cb.setStyleSheet("margin-left:25%; margin-right:25%;")
 			item = QTableWidgetItem()
 			item.setFlags(Qt.NoItemFlags)
@@ -137,7 +142,16 @@ class StatusDialog(QDialog):
 			item = QTableWidgetItem("Unknown")
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
+			pb = QProgressBar()
+			pb.setMinimum(0)
+			pb.setMaximum(100)
+			pb.setValue(50)
+			p = pb.palette()
+			p.setColor(QPalette.Highlight, self.color_darkgood)
+			pb.setPalette(p)
+			pb.setFormat("Unknown")
 			self.tableWidget.setItem(j, 2, item)
+			self.tableWidget.setCellWidget(j, 2, pb)
 		self.tableWidget.verticalHeader().hide()
 		self.tableWidget.resizeColumnsToContents()
 		layout.addWidget(self.tableWidget)
@@ -145,58 +159,89 @@ class StatusDialog(QDialog):
 		self.tableWidget.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
 		self.tableWidget.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
-		box = QDialogButtonBox(QDialogButtonBox.Ok, Qt.Horizontal)
-		layout.addWidget(box)
+		buttons = QHBoxLayout()
+		self.bstart = QPushButton("Start!")
+		self.bclose = QPushButton("Close")
+		self.bstart.clicked.connect(self.start)
+		self.bclose.clicked.connect(self.close)
+		buttons.addWidget(self.bstart)
+		buttons.addWidget(self.bclose)
+		layout.addLayout(buttons)
 		self.setLayout(layout)
-
-		self.ok = box.button(QDialogButtonBox.Ok)
-		self.ok.setEnabled(False)
-		self.ok.clicked.connect(self.close)
 		for p in self.paths:
-			self.controller.check(p)
+			self.controller.forcecheck(p)
 		self.update()
 
+	def start(self):
+		for i in xrange(len(self.paths)):
+			p = self.paths[i]
+			if self.tableWidget.cellWidget(i, 0).isChecked():
+				self.tableWidget.cellWidget(i, 0).setChecked(False)
+				self.controller.upload(p)
+
 	def update(self):
+		inprogress = False
 		for i in xrange(len(self.paths)):
 			p = self.paths[i]
 			text = self.tableWidget.item(i, 2).text()
-			color = self.tableWidget.item(i, 2).background().color()
+			lightcolor = Qt.white
+			darkcolor = self.color_darkgood
+			progress = 0
 			if p in self.controller.uploaders.keys():
 				uploader = self.controller.uploaders[p]
 				with uploader.lock:
 					if uploader.status.error:
-						color = QColor(255, 127, 127)
+						darkcolor = self.color_darkbad
+						lightcolor = self.color_lightbad
 						text = "Error"
+						progress = 100
 					elif uploader.status.inprocess:
+						inprogress = True
+						self.tableWidget.cellWidget(i, 0).setEnabled(False)
+						self.tableWidget.cellWidget(i, 0).setChecked(False)
 						if not uploader.status.exists.known():
-							color = QColor(255, 255, 255)
 							text = "Checking"
 						else:
-							color = QColor(255, 255, 255)
 							text = "Uploading"
+							progress = uploader.progress
 					else:
+						self.tableWidget.cellWidget(i, 0).setEnabled(True)
 						if uploader.status.uploaded.known():
 							if uploader.status.uploaded.value():
-								color = QColor(127, 255, 127)
+								self.tableWidget.cellWidget(i, 0).setEnabled(False)
+								self.tableWidget.cellWidget(i, 0).setChecked(False)
+								lightcolor = self.color_lightgood
 								text = "Uploaded"
+								progress = 100
 							else:
-								color = QColor(255, 127, 127)
+								darkcolor = self.color_darkbad
+								lightcolor = self.color_lightbad
 								text = "Error"
 						elif uploader.status.exists.known():
 							if uploader.status.exists.value():
-								color = QColor(127, 255, 127)
+								self.tableWidget.cellWidget(i, 0).setEnabled(False)
+								self.tableWidget.cellWidget(i, 0).setChecked(False)
+								lightcolor = self.color_lightgood
 								text = "Already Exists"
+								progress = 100
 							else:
-								color = QColor(255, 255, 255)
+								self.tableWidget.cellWidget(i, 0).setEnabled(True)
+								self.tableWidget.cellWidget(i, 0).setChecked(True)
 								text = "Ready"
 						else:
-							color = QColor(255, 255, 255)
 							text = "Unknown"
 			else:
-				color = QColor(255, 255, 255)
+				self.tableWidget.cellWidget(i, 0).setEnabled(True)
 				text = "Unknown"
-			self.tableWidget.item(i, 2).setText(text)
-			self.tableWidget.item(i, 2).setBackground(color)
+			pb = self.tableWidget.cellWidget(i, 2)
+			p = pb.palette()
+			p.setColor(QPalette.Highlight, darkcolor)
+			pb.setPalette(p)
+			pb.setFormat(text)
+			pb.setValue(progress)
+			self.tableWidget.item(i, 0).setBackground(lightcolor)
+			self.tableWidget.item(i, 1).setBackground(lightcolor)
+#		self.bstart.setEnabled(not inprogress)
 
 	def onUpdated(self):
 		self.update()
@@ -215,6 +260,10 @@ class UploadController(QObject):
 				upl = Uploader(p, self)
 				upl.updated.connect(self.onUpdated)
 				self.uploaders[p] = upl
+
+	def forcecheck(self, path):
+		self.__create_uploader__(path)
+		self.uploaders[path].forcecheck()
 
 	def check(self, path):
 		self.__create_uploader__(path)
@@ -272,6 +321,14 @@ class Uploader(QObject):
 		self.lock = threading.RLock() #FIXME I hope it works with qt threads
 		self.need_upload = False
 
+
+	def forcecheck(self):
+		with self.lock:
+			if self.status.inprocess:
+				return
+			self.status = Status()
+			self.check()
+
 	def check(self):
 		with self.lock:
 			if self.status.inprocess:
@@ -282,10 +339,12 @@ class Uploader(QObject):
 			self.reply = self.__check__()
 			self.reply.finished.connect(self.onCheck)
 
+
 	def upload(self):
 		with self.lock:
 			if self.status.inprocess:
 				self.need_upload = True
+				self.updated.emit()
 				return
 			if not self.status.exists.known():
 				self.status.inprocess = True
@@ -294,6 +353,7 @@ class Uploader(QObject):
 			elif not self.status.exists.value():
 				self.status.inprocess = True
 				self.__upload__()
+			self.updated.emit()
 
 	def onCheck(self):
 		self.onCheckAndMaybeUpload(self.need_upload, self.sender())
@@ -314,6 +374,7 @@ class Uploader(QObject):
 	def onUpload(self):
 		with self.lock:
 			self.need_upload = False
+			self.status.inprocess = False
 			if self.sender().error() != 0:
 				self.status.error = True
 				self.updated.emit()
@@ -368,6 +429,12 @@ class Uploader(QObject):
 		self.request.setRawHeader("Referer", self.referer)
 		self.reply = self.manager.post(self.request, self.multiPart)
 		self.reply.finished.connect(self.onUpload)
+		self.reply.uploadProgress.connect(self.onProgress)
+
+	def onProgress(self, s, t):
+		if (t != 0):
+			self.progress = int(100. * s / t)
+			self.updated.emit()
 
 
 #================= from another plugin
