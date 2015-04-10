@@ -20,6 +20,7 @@ import hashlib
 import json
 import urllib2
 import os
+import threading
 
 BLOCKSIZE = 65536
 DOMAIN = "books.fbreader.org"
@@ -37,6 +38,7 @@ class FBReaderUploadAction(InterfaceAction):
 		icon = QIcon(pixmap)
 		self.qaction.setIcon(icon)
 		self.qaction.triggered.connect(self.upload)
+		self.controller = UploadController(self.gui)
 
 	def upload(self):
 		rows = self.gui.library_view.selectionModel().selectedRows()
@@ -67,8 +69,8 @@ class FBReaderUploadAction(InterfaceAction):
 			for f in formats:
 				path = db.format_abspath(book_id, f, index_is_id=True)
 				paths.append(path)
-		StatusDialog(paths, self.gui).exec_()
-				
+		StatusDialog(self.controller, paths, self.gui).exec_()
+
 	def open(self):
 		from calibre.gui2.store.web_store_dialog import WebStoreDialog
 		d = WebStoreDialog(self.gui, "https://books.fbreader.org/catalog", None, None, create_browser=self.create_browser)
@@ -106,12 +108,13 @@ class FBReaderUploadAction(InterfaceAction):
 
 class StatusDialog(QDialog):
 
-	def __init__(self, paths, parent = None):
+	def __init__(self, controller, paths, parent = None):
 		QDialog.__init__(self, parent)
 		self.uploaders = []
 		self.paths = paths
 		self.todo = len(paths)
-		self.allowedToClose = False
+		self.controller = controller
+		self.controller.updated.connect(self.onUpdated)
 
 
 		self.setWindowTitle("Uploading status")
@@ -121,7 +124,7 @@ class StatusDialog(QDialog):
 		for j in xrange(len(self.paths)):
 			path = paths[j]
 			cb = QCheckBox()
-			cb.setChecked(False)
+			cb.setChecked(True)
 			cb.setStyleSheet("margin-left:25%; margin-right:25%;")
 			item = QTableWidgetItem()
 			item.setFlags(Qt.NoItemFlags)
@@ -131,75 +134,132 @@ class StatusDialog(QDialog):
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 1, item)
-			item = QTableWidgetItem("Uploading")
+			item = QTableWidgetItem("Unknown")
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 2, item)
 		self.tableWidget.verticalHeader().hide()
 		self.tableWidget.resizeColumnsToContents()
 		layout.addWidget(self.tableWidget)
-		box = QDialogButtonBox(QDialogButtonBox.Ok, Qt.Horizontal)
-		layout.addWidget(box)
 		self.tableWidget.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
 		self.tableWidget.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
 		self.tableWidget.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+
+		box = QDialogButtonBox(QDialogButtonBox.Ok, Qt.Horizontal)
+		layout.addWidget(box)
 		self.setLayout(layout)
 
 		self.ok = box.button(QDialogButtonBox.Ok)
 		self.ok.setEnabled(False)
 		self.ok.clicked.connect(self.close)
-		for p in paths:
-			uploader = Uploader(p, self)
-			self.uploaders.append(uploader)
-			uploader.finished.connect(self.onFinished)
-#			uploader.upload()
+		for p in self.paths:
+			self.controller.check(p)
+		self.update()
 
-	def onFinished(self):
-		uploader = self.sender()
-##		print(uploader.path)
-##		n = -1
-##		for i in xrange(len(self.paths)):
-##			if self.paths[i] == uploader.path:
-##				n = i
-##		text = self.tableWidget.item(n, 1).text()
-##		color = self.tableWidget.item(n, 1).background().color()
-##		if uploader.status == uploader.Status.uploaded:
-##			text = "Uploaded"
-##			color = QColor(127, 255, 127)
-##		elif uploader.status == uploader.Status.exists:
-##			text = "Already Exists"
-##			color = QColor(255, 255, 127)
-##		elif uploader.status == uploader.Status.error:
-##			text = "Error"
-##			color = QColor(255, 127, 127)
-##		self.tableWidget.item(n, 1).setText(text)
-##		self.tableWidget.item(n, 1).setBackground(color)
-##		self.tableWidget.item(n, 0).setBackground(color)
-##		self.todo -= 1
-##		if self.todo == 0:
-##			self.allowedToClose = True
-##			self.ok.setEnabled(True)
+	def update(self):
+		for i in xrange(len(self.paths)):
+			p = self.paths[i]
+			text = self.tableWidget.item(i, 2).text()
+			color = self.tableWidget.item(i, 2).background().color()
+			if p in self.controller.uploaders.keys():
+				uploader = self.controller.uploaders[p]
+				with uploader.lock:
+					if uploader.status.error:
+						color = QColor(255, 127, 127)
+						text = "Error"
+					elif uploader.status.inprocess:
+						if not uploader.status.exists.known():
+							color = QColor(255, 255, 255)
+							text = "Checking"
+						else:
+							color = QColor(255, 255, 255)
+							text = "Uploading"
+					else:
+						if uploader.status.uploaded.known():
+							if uploader.status.uploaded.value():
+								color = QColor(127, 255, 127)
+								text = "Uploaded"
+							else:
+								color = QColor(255, 127, 127)
+								text = "Error"
+						elif uploader.status.exists.known():
+							if uploader.status.exists.value():
+								color = QColor(127, 255, 127)
+								text = "Already Exists"
+							else:
+								color = QColor(255, 255, 255)
+								text = "Ready"
+						else:
+							color = QColor(255, 255, 255)
+							text = "Unknown"
+			else:
+				color = QColor(255, 255, 255)
+				text = "Unknown"
+			self.tableWidget.item(i, 2).setText(text)
+			self.tableWidget.item(i, 2).setBackground(color)
+
+	def onUpdated(self):
+		self.update()
+		self.repaint()
 
 class UploadController(QObject):
 
-	finished = pyqtSignal(int, int)    #n, error_code
-	progress = pyqtSignal(int, float)  #n, progress
+	updated = pyqtSignal()
 
 	def __init__(self, parent=None):
 		QObject.__init__(self, parent)
-		
+		self.uploaders = {}
+
+	def __create_uploader__(self, p):
+		if p not in self.uploaders.keys():
+				upl = Uploader(p, self)
+				upl.updated.connect(self.onUpdated)
+				self.uploaders[p] = upl
+
+	def check(self, path):
+		self.__create_uploader__(path)
+		self.uploaders[path].check()
+
+	def upload(self, path):
+		self.__create_uploader__(path)
+		self.uploaders[path].upload()
+
+	def onUpdated(self):
+		self.updated.emit()
+
+
+
+class b3:
+	value_flag = 1
+	known_flag = 2
+
+	def __init__(self):
+		self._value_ = 0
+
+	def set_value(self, value):
+		if value:
+			self._value_ = 3
+		else:
+			self._value_ = 2
+
+	def known(self):
+		return self._value_ & self.known_flag
+
+	def value(self):
+		return self._value_ & self.value_flag
+
+class Status:
+	def __init__(self):
+		self.exists = b3()
+		self.uploaded = b3()
+		self.inprocess = False
+		self.error = False
 
 
 
 class Uploader(QObject):
 
-	finished = pyqtSignal()
-
-	class Status:
-		uploaded = 0
-		exists = 1
-		error = 2
-		uploading = 9
+	updated = pyqtSignal()
 
 	def __init__(self, path, parent=None):
 		QObject.__init__(self, parent)
@@ -207,10 +267,60 @@ class Uploader(QObject):
 		self.path = path
 		self.manager = QNetworkAccessManager(self)
 		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
-		self.status = self.Status.uploading
+		self.status = Status()
+		self.progress = 0
+		self.lock = threading.RLock() #FIXME I hope it works with qt threads
+		self.need_upload = False
+
+	def check(self):
+		with self.lock:
+			if self.status.inprocess:
+				return
+			if self.status.exists.known():
+				return
+			self.status.inprocess = True
+			self.reply = self.__check__()
+			self.reply.finished.connect(self.onCheck)
 
 	def upload(self):
-		self.__check__()
+		with self.lock:
+			if self.status.inprocess:
+				self.need_upload = True
+				return
+			if not self.status.exists.known():
+				self.status.inprocess = True
+				self.reply = self.__check__()
+				self.reply.finished.connect(self.onCheckAndUpload)
+			elif not self.status.exists.value():
+				self.status.inprocess = True
+				self.__upload__()
+
+	def onCheck(self):
+		self.onCheckAndMaybeUpload(self.need_upload, self.sender())
+
+	def onCheckAndUpload(self):
+		self.onCheckAndMaybeUpload(True, self.sender())
+
+	def onCheckAndMaybeUpload(self, upload, sender):
+		with self.lock:
+			self.__onCheck__(sender)
+			if upload and (not self.status.error) and (not self.status.exists.value):
+				self.status.inprocess = True
+				self.__upload__()
+			else:
+				self.status.inprocess = False
+			self.updated.emit()
+
+	def onUpload(self):
+		with self.lock:
+			self.need_upload = False
+			if self.sender().error() != 0:
+				self.status.error = True
+				self.updated.emit()
+				return
+			self.status.uploaded.set_value(True)
+			self.status.exists.set_value(True)
+			self.updated.emit()
 
 	def __check__(self):
 		hasher = hashlib.sha1()
@@ -220,35 +330,30 @@ class Uploader(QObject):
 				hasher.update(buf)
 				buf = afile.read(BLOCKSIZE)
 		h = hasher.hexdigest()
-		self.referer = BASE_URL + "app/book.status.by.hash?sha1=" + h #FIXME: how to send post + cookies?
+		self.referer = BASE_URL + "app/book.status.by.hash?sha1=" + h
 		self.request = QNetworkRequest(QUrl(self.referer))
-		self.reply = self.manager.get(self.request)
-		self.reply.finished.connect(self.__onCheck__)
+		return self.manager.get(self.request)
 
-	def __onCheck__(self):
-		if self.sender().error() != 0:
-			self.status = self.Status.error
-			self.finished.emit()
+	def __onCheck__(self, sender):
+		if sender.error() != 0:
+			self.status.error = True
 			return
 		try:
-			res = json.loads(str(self.sender().readAll()))
+			res = json.loads(str(sender.readAll()))
 			if res["status"] == "found":
-				self.status = self.Status.exists
-				self.finished.emit()
+				self.status.exists.set_value(True)
 				return
 		except Exception as e:
-			self.status = self.Status.error
-			self.finished.emit()
+			self.status.error = True
 			return
 		self.csrftoken = None
 		for c in self.manager.cookieJar().allCookies():
 			if str(c.domain()) == DOMAIN and str(c.name()) == "csrftoken":
 				self.csrftoken = str(c.value())
 		if not self.csrftoken:
-			self.status = self.Status.error
-			self.finished.emit()
+			self.status.error = True
 			return
-		self.__upload__()
+		self.status.exists.set_value(False)
 
 	def __upload__(self):
 		self.multiPart = QHttpMultiPart(QHttpMultiPart.FormDataType, self)
@@ -262,17 +367,7 @@ class Uploader(QObject):
 		self.request.setRawHeader("X-CSRFToken", self.csrftoken)
 		self.request.setRawHeader("Referer", self.referer)
 		self.reply = self.manager.post(self.request, self.multiPart)
-		self.reply.finished.connect(self.__onFinished__)
-
-
-	def __onFinished__(self):
-		if self.sender().error() != 0:
-			self.status = self.Status.error
-			self.finished.emit()
-			return
-		self.status = self.Status.uploaded
-		self.finished.emit()
-
+		self.reply.finished.connect(self.onUpload)
 
 
 #================= from another plugin
