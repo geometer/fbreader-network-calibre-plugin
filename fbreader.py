@@ -67,8 +67,10 @@ class FBReaderUploadAction(InterfaceAction):
 			mi = db.get_metadata(book_id, index_is_id=True, get_user_categories=False)
 			title, formats = mi.title, mi.formats
 			for f in formats:
+				print(f)
 				path = db.format_abspath(book_id, f, index_is_id=True)
-				paths.append(path)
+				name = title + ' (' + f + ')'
+				paths.append((path, name))
 		StatusDialog(self.controller, paths, self.gui).exec_()
 
 	def open(self):
@@ -130,16 +132,16 @@ class StatusDialog(QDialog):
 		self.setWindowTitle("Uploading status")
 		layout = QVBoxLayout()
 		self.tableWidget = QTableWidget(len(paths), 3, self)
-		self.tableWidget.setHorizontalHeaderLabels(("Upload?","file", "status"))
+		self.tableWidget.setHorizontalHeaderLabels(("Upload?","Book", "Status"))
 		for j in xrange(len(self.paths)):
-			path = paths[j]
+			title = paths[j][1]
 			cb = QCheckBox()
 			cb.setStyleSheet("margin-left:25%; margin-right:25%;")
 			item = QTableWidgetItem()
 			item.setFlags(Qt.NoItemFlags)
 			self.tableWidget.setItem(j, 0, item)
 			self.tableWidget.setCellWidget(j, 0, cb)
-			item = QTableWidgetItem(os.path.basename(path))
+			item = QTableWidgetItem(title)
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 1, item)
@@ -173,7 +175,7 @@ class StatusDialog(QDialog):
 		layout.addLayout(buttons)
 		self.setLayout(layout)
 		for p in self.paths:
-			self.controller.forcecheck(p)
+			self.controller.forcecheck(p[0])
 		self.update()
 
 	def closeEvent(self, event):
@@ -181,7 +183,7 @@ class StatusDialog(QDialog):
 
 	def start(self):
 		for i in xrange(len(self.paths)):
-			p = self.paths[i]
+			p = self.paths[i][0]
 			if self.tableWidget.cellWidget(i, 0).isChecked():
 				self.tableWidget.cellWidget(i, 0).setChecked(False)
 				self.controller.upload(p)
@@ -189,7 +191,7 @@ class StatusDialog(QDialog):
 	def update(self):
 		inprogress = False
 		for i in xrange(len(self.paths)):
-			p = self.paths[i]
+			p = self.paths[i][0]
 			text = self.tableWidget.item(i, 2).text()
 			lightcolor = Qt.white
 			darkcolor = self.color_darkgood
