@@ -121,6 +121,10 @@ class StatusDialog(QDialog):
 		self.todo = len(paths)
 		self.controller = controller
 		self.controller.updated.connect(self.onUpdated)
+		self.settings = QSettings()
+		geom = self.settings.value("StatusDialogGeometry")
+		if geom:
+			self.restoreGeometry(geom)
 
 
 		self.setWindowTitle("Uploading status")
@@ -139,7 +143,7 @@ class StatusDialog(QDialog):
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 1, item)
-			item = QTableWidgetItem("Unknown")
+			item = QTableWidgetItem()
 			item.setFlags(Qt.NoItemFlags)
 			item.setForeground(QColor(0,0,0))
 			pb = QProgressBar()
@@ -171,6 +175,9 @@ class StatusDialog(QDialog):
 		for p in self.paths:
 			self.controller.forcecheck(p)
 		self.update()
+
+	def closeEvent(self, event):
+		self.settings.setValue("StatusDialogGeometry", self.saveGeometry())
 
 	def start(self):
 		for i in xrange(len(self.paths)):
