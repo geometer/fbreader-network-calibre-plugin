@@ -67,7 +67,6 @@ class FBReaderUploadAction(InterfaceAction):
 			mi = db.get_metadata(book_id, index_is_id=True, get_user_categories=False)
 			title, formats = mi.title, mi.formats
 			for f in formats:
-				print(f)
 				path = db.format_abspath(book_id, f, index_is_id=True)
 				name = title + ' (' + f + ')'
 				paths.append((path, name))
@@ -312,6 +311,7 @@ class Status:
 		self.uploaded = b3()
 		self.inprocess = False
 		self.error = False
+		self.error_message = "Error"
 
 
 
@@ -384,13 +384,25 @@ class Uploader(QObject):
 		with self.lock:
 			self.need_upload = False
 			self.status.inprocess = False
-			if self.sender().error() != 0:
+			self.__onUpload__(self.sender())
+			self.updated.emit()
+
+	def __onUpload__(self, sender):
+		if sender.error() != 0:
+			self.status.error = True
+			return
+		try:
+			data = self.sender().readAll()
+			res = json.loads(str(data))
+			if 'error' in res[0]['result'].keys():
 				self.status.error = True
-				self.updated.emit()
+				self.status.error_message = res[0]['result']['error']
 				return
 			self.status.uploaded.set_value(True)
 			self.status.exists.set_value(True)
-			self.updated.emit()
+		except Exception as e:
+			self.status.error = True
+			return
 
 	def __check__(self):
 		hasher = hashlib.sha1()
