@@ -95,6 +95,7 @@ class StatusDialog(QDialog):
 			lightcolor = Qt.white
 			darkcolor = self.color_darkgood
 			progress = 0
+			tooltip = ''
 			if p in self.controller.uploaders.keys():
 				uploader = self.controller.uploaders[p]
 				with uploader.lock:
@@ -103,6 +104,7 @@ class StatusDialog(QDialog):
 						lightcolor = self.color_lightbad
 						text = "Error"
 						progress = 100
+						tooltip = uploader.status.error_message
 					elif uploader.status.inprocess:
 						inprogress = True
 						self.tableWidget.cellWidget(i, 0).setEnabled(False)
@@ -147,6 +149,7 @@ class StatusDialog(QDialog):
 			pb.setPalette(p)
 			pb.setFormat(text)
 			pb.setValue(progress)
+			pb.setToolTip(tooltip)
 			self.tableWidget.item(i, 0).setBackground(lightcolor)
 			self.tableWidget.item(i, 1).setBackground(lightcolor)
 #		self.bstart.setEnabled(not inprogress)

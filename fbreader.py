@@ -165,7 +165,7 @@ class Status:
 		self.uploaded = b3()
 		self.inprocess = False
 		self.error = False
-		self.error_message = "Error"
+		self.error_message = ''
 
 
 
