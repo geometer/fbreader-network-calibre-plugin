@@ -22,10 +22,12 @@ class StatusDialog(QDialog):
 		self.todo = len(paths)
 		self.controller = controller
 		self.controller.updated.connect(self.onUpdated)
-		self.settings = QSettings()
+		self.settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "fbreader", "gui")
 		geom = self.settings.value("StatusDialogGeometry")
 		if geom:
 			self.restoreGeometry(geom)
+		else:
+			self.resize(800, 600)
 
 
 		self.setWindowTitle("Uploading status")
