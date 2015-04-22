@@ -175,7 +175,7 @@ class StatusRow():
 		self.pbar.setToolTip(tooltip)
 		self.items[0].setBackground(lightcolor)
 		self.items[1].setBackground(lightcolor)
-		self.items[2].status = uploader.status
+		self.items[2].compvalue = uploader.status.compare_value()
 
 class CBoxItem(QTableWidgetItem):
 	def __init__(self, cb):
@@ -189,10 +189,10 @@ class CBoxItem(QTableWidgetItem):
 class PBarItem(QTableWidgetItem):
 	def __init__(self):
 		QTableWidgetItem.__init__(self)
-		self.status = Status()
+		self.compvalue = 0
 
 	def __lt__(self, other):
-		return self.status < other.status
+		return self.compvalue < other.compvalue
 
 class b3:
 	value_flag = 1
