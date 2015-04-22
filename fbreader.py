@@ -22,7 +22,7 @@ import urllib2
 import os
 import threading
 
-from .status_dialog import StatusDialog
+from .status_dialog import StatusDialog, Status
 
 BLOCKSIZE = 65536
 DOMAIN = "books.fbreader.org"
@@ -139,33 +139,6 @@ class UploadController(QObject):
 		self.updated.emit()
 
 
-
-class b3:
-	value_flag = 1
-	known_flag = 2
-
-	def __init__(self):
-		self._value_ = 0
-
-	def set_value(self, value):
-		if value:
-			self._value_ = 3
-		else:
-			self._value_ = 2
-
-	def known(self):
-		return self._value_ & self.known_flag
-
-	def value(self):
-		return self._value_ & self.value_flag
-
-class Status:
-	def __init__(self):
-		self.exists = b3()
-		self.uploaded = b3()
-		self.inprocess = False
-		self.error = False
-		self.error_message = ''
 
 
 
