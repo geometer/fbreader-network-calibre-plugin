@@ -230,9 +230,13 @@ class Uploader(QObject):
 			self.__onCheck__(sender)
 			if upload and (not self.status.error) and (not self.status.exists.value):
 				self.status.inprocess = True
+				self.reply.deleteLater()
+				self.reply = None
 				self.__upload__()
 			else:
 				self.status.inprocess = False
+				self.reply.deleteLater()
+				self.reply = None
 			self.updated.emit()
 
 	def onUpload(self):
@@ -240,6 +244,8 @@ class Uploader(QObject):
 			self.need_upload = False
 			self.status.inprocess = False
 			self.__onUpload__(self.sender())
+			self.reply.deleteLater()
+			self.reply = None
 			self.updated.emit()
 
 	def __onUpload__(self, sender):
@@ -267,7 +273,6 @@ class Uploader(QObject):
 
 	def __hash__(self):
 		hasher = hashlib.sha1()
-		print(len(get_open_fds()))
 		with open(self.path, 'rb') as afile:
 			buf = afile.read(BLOCKSIZE)
 			while len(buf) > 0:
