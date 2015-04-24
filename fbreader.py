@@ -70,8 +70,8 @@ class FBReaderUploadAction(InterfaceAction):
 			title, formats = mi.title, mi.formats
 			for f in formats:
 				path = db.format_abspath(book_id, f, index_is_id=True)
-				name = title + ' (' + f + ')'
-				paths.append((path, name))
+				name = title
+				paths.append((path, name, f))
 		StatusDialog(self.controller, paths, self.gui).exec_()
 
 	def open(self):
