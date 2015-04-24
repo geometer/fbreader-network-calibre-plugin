@@ -111,10 +111,13 @@ class FBReaderUploadAction(InterfaceAction):
 
 class UploadController(QObject):
 
+
 #	updated = pyqtSignal()
 
 	def __init__(self, parent=None):
 		QObject.__init__(self, parent)
+		self.pool = QThreadPool(self)
+		self.pool.setMaxThreadCount(10)
 		self.uploaders = {}
 
 	def get_uploader(self, p):
@@ -139,12 +142,34 @@ class UploadController(QObject):
 #		self.updated.emit()
 
 
+import resource
+import fcntl
+import os
 
+def get_open_fds():
+    fds = []
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    for fd in range(0, soft):
+        try:
+            flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+        except IOError:
+            continue
+        fds.append(fd)
+    return fds
+
+class My_Runnable(QRunnable):
+	def __init__(self, func):
+		QRunnable.__init__(self)
+		self.func = func
+
+	def run(self):
+		apply(self.func)
 
 
 class Uploader(QObject):
 
 	updated = pyqtSignal()
+	hashed = pyqtSignal()
 
 	def __init__(self, path, parent=None):
 		QObject.__init__(self, parent)
@@ -156,6 +181,8 @@ class Uploader(QObject):
 		self.progress = 0
 		self.lock = threading.RLock() #FIXME I hope it works with qt threads
 		self.need_upload = False
+		self.hash = None
+		self.hashed.connect(self.__check__)
 
 
 	def forcecheck(self):
@@ -172,8 +199,8 @@ class Uploader(QObject):
 			if self.status.exists.known():
 				return
 			self.status.inprocess = True
-			self.reply = self.__check__()
-			self.reply.finished.connect(self.onCheck)
+			r = My_Runnable(lambda: self.__hash__())
+			self.parent().pool.start(r)
 
 
 	def upload(self):
@@ -184,8 +211,9 @@ class Uploader(QObject):
 				return
 			if not self.status.exists.known():
 				self.status.inprocess = True
-				self.reply = self.__check__()
-				self.reply.finished.connect(self.onCheckAndUpload)
+				self.need_upload = True
+				r = My_Runnable(lambda: self.__check__(self.onCheck))
+				self.parent().pool.start(r)
 			elif not self.status.exists.value():
 				self.status.inprocess = True
 				self.__upload__()
@@ -194,8 +222,8 @@ class Uploader(QObject):
 	def onCheck(self):
 		self.onCheckAndMaybeUpload(self.need_upload, self.sender())
 
-	def onCheckAndUpload(self):
-		self.onCheckAndMaybeUpload(True, self.sender())
+#	def onCheckAndUpload(self):
+#		self.onCheckAndMaybeUpload(True, self.sender())
 
 	def onCheckAndMaybeUpload(self, upload, sender):
 		with self.lock:
@@ -232,16 +260,21 @@ class Uploader(QObject):
 			return
 
 	def __check__(self):
+		self.referer = BASE_URL + "app/book.status.by.hash?sha1=" + self.hash
+		self.request = QNetworkRequest(QUrl(self.referer))
+		self.reply = self.manager.get(self.request)
+		self.reply.finished.connect(self.onCheck)
+
+	def __hash__(self):
 		hasher = hashlib.sha1()
+		print(len(get_open_fds()))
 		with open(self.path, 'rb') as afile:
 			buf = afile.read(BLOCKSIZE)
 			while len(buf) > 0:
 				hasher.update(buf)
 				buf = afile.read(BLOCKSIZE)
-		h = hasher.hexdigest()
-		self.referer = BASE_URL + "app/book.status.by.hash?sha1=" + h
-		self.request = QNetworkRequest(QUrl(self.referer))
-		return self.manager.get(self.request)
+		self.hash = hasher.hexdigest()
+		self.hashed.emit()
 
 	def __onCheck__(self, sender):
 		if sender.error() != 0:
