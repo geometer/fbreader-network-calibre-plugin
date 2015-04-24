@@ -18,6 +18,12 @@ class StatusDialog(QDialog):
 		self.controller.updated.connect(self.onUpdated)
 		self.settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "fbreader", "gui")
 		self.filter = Filter()
+		formats = []
+		for p in self.paths:
+			f = p[2]
+			if f not in formats:
+				formats.append(f)
+		formats = sorted(formats)
 		geom = self.settings.value("StatusDialogGeometry")
 		if geom:
 			self.restoreGeometry(geom)
@@ -27,6 +33,24 @@ class StatusDialog(QDialog):
 
 		self.setWindowTitle("Uploading status")
 		layout = QVBoxLayout()
+		filter_layout = QHBoxLayout()
+		lf = QLabel("Show formats: ")
+		filter_layout.addWidget(lf)
+		fcbox = QComboBox()
+		fcbox.addItem('All')
+		fcbox.addItems(formats)
+		fcbox.currentIndexChanged[str].connect(self.onFormatChanged)
+		filter_layout.addWidget(fcbox)
+
+		ls = QLabel("Show statuses: ")
+		filter_layout.addWidget(ls)
+		scbox = QComboBox()
+		scbox.addItems(("All", 'Unknown', "Checking", "Ready", "Already Exists", "Uploading", "Uploaded", "Error"))
+		scbox.currentIndexChanged[str].connect(self.onStatusChanged)
+		filter_layout.addWidget(scbox)
+
+		layout.addLayout(filter_layout)
+
 		self.tableWidget = QTableWidget(len(paths), 4, self)
 		self.tableWidget.setHorizontalHeaderLabels(("Upload?","Book", "Format", "Status"))
 		self.rows = []
@@ -86,7 +110,6 @@ class StatusDialog(QDialog):
 		self.setLayout(layout)
 		for p in self.paths:
 			self.controller.forcecheck(p[0])
-		self.applyfilter()
 		self.update()
 
 	def closeEvent(self, event):
@@ -101,18 +124,25 @@ class StatusDialog(QDialog):
 	def update(self):
 		for r in self.rows:
 			r.update(self.controller.uploaders)
+		self.applyfilter()
 
 	def onUpdated(self):
 		self.update()
 		self.repaint()
 
+	def onFormatChanged(self, f):
+		self.filter.format_filter = f
+		self.applyfilter()
+
+	def onStatusChanged(self, s):
+		self.filter.status_filter = s
+		self.applyfilter()
+
 	def applyfilter(self):
-#		if self.filter.format_filter == 'all' and self.filter.status_filter == 'all':
-#			return
 		for i in xrange(self.tableWidget.rowCount()):
 			f = self.tableWidget.item(i, 2).text()
 			s = self.tableWidget.cellWidget(i, 3).format()
-			if (self.filter.format_filter != 'all' and self.filter.format_filter != f) or (self.filter.status_filter != 'all' and self.filter.status_filter != s):
+			if (self.filter.format_filter != 'All' and self.filter.format_filter != f) or (self.filter.status_filter != 'All' and self.filter.status_filter != s):
 				self.tableWidget.setRowHidden(i, True)
 			else:
 				self.tableWidget.setRowHidden(i, False)
@@ -121,8 +151,8 @@ class StatusDialog(QDialog):
 class Filter():
 
 	def __init__(self):
-		self.format_filter = 'all'
-		self.status_filter = 'all'
+		self.format_filter = 'All'
+		self.status_filter = 'All'
 
 class StatusRow():
 
