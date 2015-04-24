@@ -11,11 +11,9 @@ class StatusDialog(QDialog):
 
 	def __init__(self, controller, paths, parent = None):
 		QDialog.__init__(self, parent)
-		self.uploaders = []
 		self.paths = paths
 		self.todo = len(paths)
 		self.controller = controller
-		self.controller.updated.connect(self.onUpdated)
 		self.settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "fbreader", "gui")
 		self.filter = Filter()
 		formats = []
@@ -87,7 +85,7 @@ class StatusDialog(QDialog):
 			self.tableWidget.setItem(j, 3, itemp)
 			self.tableWidget.setCellWidget(j, 3, pb)
 			items.append(itemp)
-			row = StatusRow(items, pb, cb, paths[j][0])
+			row = StatusRow(self, items, pb, cb, self.controller.get_uploader(paths[j][0]))
 			self.rows.append(row)
 		self.tableWidget.verticalHeader().hide()
 		self.tableWidget.resizeColumnsToContents()
@@ -119,15 +117,7 @@ class StatusDialog(QDialog):
 		for r in self.rows:
 			if r.cbox.isChecked():
 				r.cbox.setChecked(False)
-				self.controller.upload(r.path)
-
-	def update(self):
-		for r in self.rows:
-			r.update(self.controller.uploaders)
-		self.applyfilter()
-
-	def onUpdated(self):
-		self.update()
+				r.uploader.upload()
 
 	def onFormatChanged(self, f):
 		self.filter.format_filter = f
@@ -139,12 +129,15 @@ class StatusDialog(QDialog):
 
 	def applyfilter(self):
 		for i in xrange(self.tableWidget.rowCount()):
-			f = self.tableWidget.item(i, 2).text()
-			s = self.tableWidget.cellWidget(i, 3).format()
-			if (self.filter.format_filter != 'All' and self.filter.format_filter != f) or (self.filter.status_filter != 'All' and self.filter.status_filter != s):
-				self.tableWidget.setRowHidden(i, True)
-			else:
-				self.tableWidget.setRowHidden(i, False)
+			self.applyfilter(self,i)
+
+	def applyfilter(self, row):
+		f = self.tableWidget.item(row, 2).text()
+		s = self.tableWidget.cellWidget(row, 3).format()
+		if (self.filter.format_filter != 'All' and self.filter.format_filter != f) or (self.filter.status_filter != 'All' and self.filter.status_filter != s):
+			self.tableWidget.setRowHidden(row, True)
+		else:
+			self.tableWidget.setRowHidden(row, False)
 
 
 class Filter():
@@ -162,67 +155,62 @@ class StatusRow():
 	color_darkbad = QColor(80, 0, 0)
 
 
-	def __init__(self, items, pb, cb, p):
+	def __init__(self, d, items, pb, cb, up):
 		self.items = items
 		self.pbar = pb
 		self.cbox = cb
-		self.path = p
+		self.uploader = up
+		self.uploader.updated.connect(self.update)
+		self.dialog = d
 
-	def update(self, uploaders):
+	def update(self):
 		text = ''
 		lightcolor = Qt.white
 		darkcolor = self.color_darkgood
 		progress = 0
 		tooltip = ''
-		if self.path in uploaders.keys():
-			uploader = uploaders[self.path]
-			with uploader.lock:
-				if uploader.status.error:
-					darkcolor = self.color_darkbad
-					lightcolor = self.color_lightbad
-					text = "Error"
-					progress = 100
-					tooltip = uploader.status.error_message
-				elif uploader.status.inprocess:
-					inprogress = True
-					self.cbox.setEnabled(False)
-					self.cbox.setChecked(False)
-					if not uploader.status.exists.known():
-						text = "Checking"
-					else:
-						text = "Uploading"
-						progress = uploader.progress
+		with self.uploader.lock:
+			if self.uploader.status.error:
+				darkcolor = self.color_darkbad
+				lightcolor = self.color_lightbad
+				text = "Error"
+				progress = 100
+				tooltip = self.uploader.status.error_message
+			elif self.uploader.status.inprocess:
+				inprogress = True
+				self.cbox.setEnabled(False)
+				self.cbox.setChecked(False)
+				if not self.uploader.status.exists.known():
+					text = "Checking"
 				else:
-					self.cbox.setEnabled(True)
-					if uploader.status.uploaded.known():
-						if uploader.status.uploaded.value():
-							self.cbox.setEnabled(False)
-							self.cbox.setChecked(False)
-							lightcolor = self.color_lightgood
-							text = "Uploaded"
-							progress = 100
-						else:
-							darkcolor = self.color_darkbad
-							lightcolor = self.color_lightbad
-							text = "Error"
-					elif uploader.status.exists.known():
-						if uploader.status.exists.value():
-							self.cbox.setEnabled(False)
-							self.cbox.setChecked(False)
-							lightcolor = self.color_lightgood
-							text = "Already Exists"
-							progress = 100
-						else:
-							self.cbox.setEnabled(True)
-							self.cbox.setChecked(True)
-							text = "Ready"
+					text = "Uploading"
+					progress = self.uploader.progress
+			else:
+				self.cbox.setEnabled(True)
+				if self.uploader.status.uploaded.known():
+					if self.uploader.status.uploaded.value():
+						self.cbox.setEnabled(False)
+						self.cbox.setChecked(False)
+						lightcolor = self.color_lightgood
+						text = "Uploaded"
+						progress = 100
 					else:
-						text = "Unknown"
-			self.items[3].compvalue = uploader.status.compare_value()
-		else:
-			self.cbox.setEnabled(True)
-			text = "Unknown"
-			self.items[3].compvalue = 0
+						darkcolor = self.color_darkbad
+						lightcolor = self.color_lightbad
+						text = "Error"
+				elif self.uploader.status.exists.known():
+					if self.uploader.status.exists.value():
+						self.cbox.setEnabled(False)
+						self.cbox.setChecked(False)
+						lightcolor = self.color_lightgood
+						text = "Already Exists"
+						progress = 100
+					else:
+						self.cbox.setEnabled(True)
+						self.cbox.setChecked(True)
+						text = "Ready"
+				else:
+					text = "Unknown"
 		p = self.pbar.palette()
 		p.setColor(QPalette.Highlight, darkcolor)
 		self.pbar.setPalette(p)
@@ -232,6 +220,8 @@ class StatusRow():
 		self.items[0].setBackground(lightcolor)
 		self.items[1].setBackground(lightcolor)
 		self.items[2].setBackground(lightcolor)
+		self.items[3].compvalue = self.uploader.status.compare_value()
+		self.dialog.applyfilter(self.items[0].row())
 
 class CBoxItem(QTableWidgetItem):
 	def __init__(self, cb):

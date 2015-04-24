@@ -111,32 +111,32 @@ class FBReaderUploadAction(InterfaceAction):
 
 class UploadController(QObject):
 
-	updated = pyqtSignal()
+#	updated = pyqtSignal()
 
 	def __init__(self, parent=None):
 		QObject.__init__(self, parent)
 		self.uploaders = {}
 
-	def __create_uploader__(self, p):
+	def get_uploader(self, p):
 		if p not in self.uploaders.keys():
 				upl = Uploader(p, self)
-				upl.updated.connect(self.onUpdated)
+#				upl.updated.connect(self.onUpdated)
 				self.uploaders[p] = upl
+		return self.uploaders[p]
+
+
 
 	def forcecheck(self, path):
-		self.__create_uploader__(path)
-		self.uploaders[path].forcecheck()
+		self.get_uploader(path).forcecheck()
 
 	def check(self, path):
-		self.__create_uploader__(path)
-		self.uploaders[path].check()
+		self.get_uploader(path).check()
 
 	def upload(self, path):
-		self.__create_uploader__(path)
-		self.uploaders[path].upload()
+		self.get_uploader(path).upload()
 
-	def onUpdated(self):
-		self.updated.emit()
+#	def onUpdated(self):
+#		self.updated.emit()
 
 
 
