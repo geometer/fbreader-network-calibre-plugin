@@ -17,6 +17,7 @@ class StatusDialog(QDialog):
 		self.controller = controller
 		self.controller.updated.connect(self.onUpdated)
 		self.settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "fbreader", "gui")
+		self.filter = Filter()
 		geom = self.settings.value("StatusDialogGeometry")
 		if geom:
 			self.restoreGeometry(geom)
@@ -85,6 +86,7 @@ class StatusDialog(QDialog):
 		self.setLayout(layout)
 		for p in self.paths:
 			self.controller.forcecheck(p[0])
+		self.applyfilter()
 		self.update()
 
 	def closeEvent(self, event):
@@ -103,6 +105,24 @@ class StatusDialog(QDialog):
 	def onUpdated(self):
 		self.update()
 		self.repaint()
+
+	def applyfilter(self):
+#		if self.filter.format_filter == 'all' and self.filter.status_filter == 'all':
+#			return
+		for i in xrange(self.tableWidget.rowCount()):
+			f = self.tableWidget.item(i, 2).text()
+			s = self.tableWidget.cellWidget(i, 3).format()
+			if (self.filter.format_filter != 'all' and self.filter.format_filter != f) or (self.filter.status_filter != 'all' and self.filter.status_filter != s):
+				self.tableWidget.setRowHidden(i, True)
+			else:
+				self.tableWidget.setRowHidden(i, False)
+
+
+class Filter():
+
+	def __init__(self):
+		self.format_filter = 'all'
+		self.status_filter = 'all'
 
 class StatusRow():
 
