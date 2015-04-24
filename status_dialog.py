@@ -128,7 +128,6 @@ class StatusDialog(QDialog):
 
 	def onUpdated(self):
 		self.update()
-		self.repaint()
 
 	def onFormatChanged(self, f):
 		self.filter.format_filter = f
@@ -219,9 +218,11 @@ class StatusRow():
 							text = "Ready"
 					else:
 						text = "Unknown"
+			self.items[3].compvalue = uploader.status.compare_value()
 		else:
 			self.cbox.setEnabled(True)
 			text = "Unknown"
+			self.items[3].compvalue = 0
 		p = self.pbar.palette()
 		p.setColor(QPalette.Highlight, darkcolor)
 		self.pbar.setPalette(p)
@@ -231,7 +232,6 @@ class StatusRow():
 		self.items[0].setBackground(lightcolor)
 		self.items[1].setBackground(lightcolor)
 		self.items[2].setBackground(lightcolor)
-		self.items[3].compvalue = uploader.status.compare_value()
 
 class CBoxItem(QTableWidgetItem):
 	def __init__(self, cb):
