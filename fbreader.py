@@ -119,6 +119,8 @@ class UploadController(QObject):
 		self.pool = QThreadPool(self)
 		self.pool.setMaxThreadCount(10)
 		self.uploaders = {}
+		self.manager = QNetworkAccessManager(self)
+		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
 
 	def get_uploader(self, p):
 		if p not in self.uploaders.keys():
@@ -175,8 +177,6 @@ class Uploader(QObject):
 		QObject.__init__(self, parent)
 		self.url = BASE_URL + "app/book.upload"
 		self.path = path
-		self.manager = QNetworkAccessManager(self)
-		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
 		self.status = Status()
 		self.progress = 0
 		self.lock = threading.RLock() #FIXME I hope it works with qt threads
@@ -212,7 +212,7 @@ class Uploader(QObject):
 			if not self.status.exists.known():
 				self.status.inprocess = True
 				self.need_upload = True
-				r = My_Runnable(lambda: self.__check__(self.onCheck))
+				r = My_Runnable(lambda: self.__hash__())
 				self.parent().pool.start(r)
 			elif not self.status.exists.value():
 				self.status.inprocess = True
@@ -268,7 +268,7 @@ class Uploader(QObject):
 	def __check__(self):
 		self.referer = BASE_URL + "app/book.status.by.hash?sha1=" + self.hash
 		self.request = QNetworkRequest(QUrl(self.referer))
-		self.reply = self.manager.get(self.request)
+		self.reply = self.parent().manager.get(self.request)
 		self.reply.finished.connect(self.onCheck)
 
 	def __hash__(self):
@@ -294,7 +294,7 @@ class Uploader(QObject):
 			self.status.error = True
 			return
 		self.csrftoken = None
-		for c in self.manager.cookieJar().allCookies():
+		for c in self.parent().manager.cookieJar().allCookies():
 			if str(c.domain()) == DOMAIN and str(c.name()) == "csrftoken":
 				self.csrftoken = str(c.value())
 		if not self.csrftoken:
@@ -313,7 +313,7 @@ class Uploader(QObject):
 		self.request = QNetworkRequest(QUrl(self.url))
 		self.request.setRawHeader("X-CSRFToken", self.csrftoken)
 		self.request.setRawHeader("Referer", self.referer)
-		self.reply = self.manager.post(self.request, self.multiPart)
+		self.reply = self.parent().manager.post(self.request, self.multiPart)
 		self.reply.finished.connect(self.onUpload)
 		self.reply.uploadProgress.connect(self.onProgress)
 

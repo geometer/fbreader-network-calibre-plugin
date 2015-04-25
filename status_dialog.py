@@ -121,15 +121,15 @@ class StatusDialog(QDialog):
 
 	def onFormatChanged(self, f):
 		self.filter.format_filter = f
-		self.applyfilter()
+		self.applyfilter_global()
 
 	def onStatusChanged(self, s):
 		self.filter.status_filter = s
-		self.applyfilter()
+		self.applyfilter_global()
 
-	def applyfilter(self):
+	def applyfilter_global(self):
 		for i in xrange(self.tableWidget.rowCount()):
-			self.applyfilter(self,i)
+			self.applyfilter(i)
 
 	def applyfilter(self, row):
 		f = self.tableWidget.item(row, 2).text()
