@@ -6,6 +6,7 @@ __license__ = 'MIT'
 __copyright__ = '2014, FBReader.ORG Limited <support@fbreader.org>'
 
 from PyQt5.Qt import *
+from threading import Thread
 
 class StatusDialog(QDialog):
 
@@ -96,7 +97,6 @@ class StatusDialog(QDialog):
 		self.tableWidget.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
 
 		self.tableWidget.setSortingEnabled(True)
-
 		buttons = QHBoxLayout()
 		self.bstart = QPushButton("Start!")
 		self.bclose = QPushButton("Close")
@@ -106,6 +106,10 @@ class StatusDialog(QDialog):
 		buttons.addWidget(self.bclose)
 		layout.addLayout(buttons)
 		self.setLayout(layout)
+		thread = Thread(target = lambda: self.checkall())
+		thread.start()
+
+	def checkall(self):
 		for p in self.paths:
 			self.controller.forcecheck(p[0])
 		self.update()
