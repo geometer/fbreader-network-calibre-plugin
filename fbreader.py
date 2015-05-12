@@ -3,7 +3,7 @@
 from __future__ import (unicode_literals, division, absolute_import, print_function)
 
 __license__ = 'MIT'
-__copyright__ = '2014, FBReader.ORG Limited <support@fbreader.org>'
+__copyright__ = '2015, FBReader.ORG Limited <support@fbreader.org>'
 
 import platform
 
@@ -28,10 +28,10 @@ BLOCKSIZE = 65536
 DOMAIN = "books.fbreader.org"
 BASE_URL = "https://books.fbreader.org/"
 
-class FBReaderUploadAction(InterfaceAction):
+class FBReaderSyncAction(InterfaceAction):
 
-	name = 'Upload to FBReader'
-	action_spec = ('Upload to FBReader', None, None, None)
+	name = 'FBReader Sync'
+	action_spec = (name, None, None, None)
 	action_type = 'current'
 
 	def genesis(self):
@@ -46,20 +46,18 @@ class FBReaderUploadAction(InterfaceAction):
 		rows = self.gui.library_view.selectionModel().selectedRows()
 		if not rows or len(rows) == 0:
 			return error_dialog(self.gui, 'No books selected',
-								'You must select one or more books to perform this action.', show=True)
+								'Please select one or more books to perform this action.', show=True)
 		login = self.check_login()
 		if login == 1:#not authorized
 			msgBox = QMessageBox()
-			msgBox.setWindowTitle("Not authorized")
-			msgBox.setText("Would you kindly login into books.fbreader.org?")
+			msgBox.setWindowTitle('Not authorized')
+			msgBox.setText('Would you like to sign in to FBReader Book Network?')
 			msgBox.exec_()
 			self.open()
 			if self.check_login() != 0:
-				return error_dialog(self.gui, 'You still not authorized!',
-									'Shame on you!', show=True)
+				return error_dialog(self.gui, 'Error', 'You are not authorised', show=True)
 		elif login != 0:
-			return error_dialog(self.gui, 'Error',
-									'Something awful happened!', show=True)
+			return error_dialog(self.gui, 'Error', 'Something went wrong', show=True)
 		book_ids = self.gui.library_view.get_selected_ids()
 		db = self.gui.library_view.model().db
 
@@ -77,7 +75,7 @@ class FBReaderUploadAction(InterfaceAction):
 	def open(self):
 		from calibre.gui2.store.web_store_dialog import WebStoreDialog
 		d = WebStoreDialog(self.gui, "https://books.fbreader.org/catalog", None, None, create_browser=self.create_browser)
-		d.setWindowTitle("FBReader® Book Network")
+		d.setWindowTitle("FBReader Book Network")
 		d.view.cookie_jar = MyNetworkCookieJar(True)
 		d.view.page().networkAccessManager().setCookieJar(d.view.cookie_jar)
 		d.exec_()

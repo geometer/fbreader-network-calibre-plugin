@@ -3,7 +3,7 @@
 from __future__ import (unicode_literals, division, absolute_import, print_function)
 
 __license__ = 'MIT'
-__copyright__ = '2014, FBReader.ORG Limited <support@fbreader.org>'
+__copyright__ = '2015, FBReader.ORG Limited <support@fbreader.org>'
 
 from PyQt5.Qt import *
 from threading import Thread
@@ -30,10 +30,10 @@ class StatusDialog(QDialog):
 			self.resize(800, 600)
 
 
-		self.setWindowTitle("Uploading status")
+		self.setWindowTitle("Sync status")
 		layout = QVBoxLayout()
 		filter_layout = QHBoxLayout()
-		lf = QLabel("Show formats: ")
+		lf = QLabel("Format filter: ")
 		filter_layout.addWidget(lf)
 		fcbox = QComboBox()
 		fcbox.addItem('All')
@@ -41,17 +41,17 @@ class StatusDialog(QDialog):
 		fcbox.currentIndexChanged[str].connect(self.onFormatChanged)
 		filter_layout.addWidget(fcbox)
 
-		ls = QLabel("Show statuses: ")
+		ls = QLabel('Status filter: ')
 		filter_layout.addWidget(ls)
 		scbox = QComboBox()
-		scbox.addItems(("All", 'Unknown', "Checking", "Ready", "Already Exists", "Uploading", "Uploaded", "Error"))
+		scbox.addItems(('All', 'Unknown', 'Checking', 'Ready', 'Synchronised', 'Uploading', 'Uploaded', 'Error'))
 		scbox.currentIndexChanged[str].connect(self.onStatusChanged)
 		filter_layout.addWidget(scbox)
 
 		layout.addLayout(filter_layout)
 
 		self.tableWidget = QTableWidget(len(paths), 4, self)
-		self.tableWidget.setHorizontalHeaderLabels(("Upload?","Book", "Format", "Status"))
+		self.tableWidget.setHorizontalHeaderLabels(('Select', 'Book', 'Format', 'Status'))
 		self.rows = []
 		for j in xrange(len(self.paths)):
 			cb = QCheckBox()
@@ -207,7 +207,7 @@ class StatusRow():
 						self.cbox.setEnabled(False)
 						self.cbox.setChecked(False)
 						lightcolor = self.color_lightgood
-						text = "Already Exists"
+						text = "Synchronised"
 						progress = 100
 					else:
 						self.cbox.setEnabled(True)
