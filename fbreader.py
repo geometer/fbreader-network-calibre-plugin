@@ -164,6 +164,10 @@ class UploadController(QObject):
 			res = json.loads(str(r.readAll()))
 			self.replies.remove(r)
 			r.deleteLater()
+			csrftoken = ''
+			for c in self.manager.cookieJar().allCookies():
+				if str(c.domain()) == DOMAIN and str(c.name()) == "csrftoken":
+					csrftoken = str(c.value())
 			for b in res:
 				for h in b['hashes']:
 					print('===')
@@ -176,6 +180,7 @@ class UploadController(QObject):
 						hashes[h].updated.emit()
 			print('---')
 			for u in hashes.values():
+				u.csrftoken = csrftoken
 				if not u.status.exists.known():
 					print(u.path)
 					u.status.exists.set_value(False)
@@ -287,7 +292,7 @@ class Uploader(QObject):
 		self.multiPart.append(self.filePart)
 		self.request = QNetworkRequest(QUrl(self.url))
 		self.request.setRawHeader("X-CSRFToken", self.csrftoken)
-		self.request.setRawHeader("Referer", self.referer)
+		self.request.setRawHeader("Referer", BASE_URL + "app/books.by.hashes")
 		self.reply = self.parent().manager.post(self.request, self.multiPart)
 		self.reply.finished.connect(self.onUpload)
 		self.reply.uploadProgress.connect(self.onProgress)

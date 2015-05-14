@@ -119,8 +119,8 @@ class StatusDialog(QDialog):
 		for r in self.rows:
 			if r.cbox.isChecked():
 				pass
-#				r.cbox.setChecked(False)
-#				r.uploader.upload()
+				r.cbox.setChecked(False)
+				r.uploader.upload()
 
 	def onFormatChanged(self, f):
 		self.filter.format_filter = f
