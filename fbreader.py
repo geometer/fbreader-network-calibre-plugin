@@ -113,13 +113,14 @@ class UploadController(QObject):
 
 	hashed = pyqtSignal(object)
 
+	CHECK_NUM = 90
+
 	def __init__(self, parent=None):
 		QObject.__init__(self, parent)
 		self.uploaders = {}
 		self.manager = QNetworkAccessManager(self)
 		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
 		self.replies = set()
-		self.request = None
 		self.hashed.connect(self.onHash)
 
 	def get_uploader(self, p):
@@ -132,10 +133,15 @@ class UploadController(QObject):
 		hashes = {}
 		for p in paths:
 			u = self.get_uploader(p[0])
+			u.status = Status()
 			u.status.inprocess = True
+			u.updated.emit()
 			if not u.hash:
 				u.prepare_hash()
 			hashes[u.hash] = u
+			if len(hashes.keys()) >= self.CHECK_NUM:
+				self.hashed.emit(hashes)
+				hashes = {}
 		self.hashed.emit(hashes)
 		
 
@@ -149,9 +155,8 @@ class UploadController(QObject):
 		for h in hashes.keys():
 			url += (h + ',')
 		url = url[:-1]
-		print(url)
-		self.request = QNetworkRequest(QUrl(url))
-		reply = self.manager.get(self.request)
+		request = QNetworkRequest(QUrl(url))
+		reply = self.manager.get(request)
 		reply.finished.connect(lambda: self.onCheck(hashes))
 		self.replies.add(reply)
 
@@ -170,19 +175,13 @@ class UploadController(QObject):
 					csrftoken = str(c.value())
 			for b in res:
 				for h in b['hashes']:
-					print('===')
-					print(h)
-					print('===')
 					if h in hashes.keys():
-						print(hashes[h].path)
 						hashes[h].status.exists.set_value(True)
 						hashes[h].status.inprocess = False
 						hashes[h].updated.emit()
-			print('---')
 			for u in hashes.values():
 				u.csrftoken = csrftoken
 				if not u.status.exists.known():
-					print(u.path)
 					u.status.exists.set_value(False)
 					u.status.inprocess = False
 					u.updated.emit()
