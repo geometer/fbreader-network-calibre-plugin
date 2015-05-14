@@ -105,6 +105,7 @@ class StatusDialog(QDialog):
 		buttons.addWidget(self.bstart)
 		buttons.addWidget(self.bclose)
 		layout.addLayout(buttons)
+		self.load_filter(fcbox, scbox)
 		self.setLayout(layout)
 		self.checkall()
 
@@ -114,6 +115,7 @@ class StatusDialog(QDialog):
 
 	def closeEvent(self, event):
 		self.settings.setValue("StatusDialogGeometry", self.saveGeometry())
+		self.save_filter()
 
 	def start(self):
 		for r in self.rows:
@@ -142,7 +144,21 @@ class StatusDialog(QDialog):
 		else:
 			self.tableWidget.setRowHidden(row, False)
 
+	def save_filter(self):
+		self.settings.setValue("FORMAT_FILTER", self.filter.format_filter)
+		self.settings.setValue("STATUS_FILTER", self.filter.status_filter)
 
+	def load_filter(self, fcbox, scbox):
+		ff = self.settings.value("FORMAT_FILTER")
+		sf = self.settings.value("STATUS_FILTER")
+		n = fcbox.findText(ff)
+		if n != -1:
+			fcbox.setCurrentIndex(n)
+		n = scbox.findText(ff)
+		if n != -1:
+			scbox.setCurrentIndex(n)
+		
+		
 class Filter():
 
 	def __init__(self):
