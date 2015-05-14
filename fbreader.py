@@ -21,6 +21,7 @@ import json
 import urllib2
 import os
 import threading
+from threading import Thread
 
 from .status_dialog import StatusDialog, Status
 
@@ -110,24 +111,67 @@ class FBReaderSyncAction(InterfaceAction):
 class UploadController(QObject):
 
 
-#	updated = pyqtSignal()
+	hashed = pyqtSignal(object)
 
 	def __init__(self, parent=None):
 		QObject.__init__(self, parent)
-		self.pool = QThreadPool(self)
-		self.pool.setMaxThreadCount(10)
 		self.uploaders = {}
 		self.manager = QNetworkAccessManager(self)
 		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
+		self.reply = None
+		self.request = None
+		self.hashed.connect(self.onHash)
 
 	def get_uploader(self, p):
 		if p not in self.uploaders.keys():
 				upl = Uploader(p, self)
-#				upl.updated.connect(self.onUpdated)
 				self.uploaders[p] = upl
 		return self.uploaders[p]
 
+	def hash_all(self, paths):
+		hashes = {}
+		for p in paths:
+			u = self.get_uploader(p[0])
+			if not u.hash:
+				u.prepare_hash()
+			hashes[u.hash] = u
+		self.hashed.emit(hashes)
+		
 
+	def check_all(self, paths):
+		thread = Thread(target = lambda: self.hash_all(paths))
+		thread.start()
+
+
+	def onHash(self, hashes): #TODO: some synchronization?
+		url = BASE_URL + "app/books.by.hashes?hashes=" #FIXME: better post parameters processing
+		for h in hashes.keys():
+			url += (h + '&')
+		url = url[:-1]
+		self.request = QNetworkRequest(QUrl(url))
+		self.reply = self.manager.get(self.request)
+		self.reply.finished.connect(lambda: self.onCheck(hashes))
+
+	def onCheck(self, hashes):
+		if self.sender().error() != 0:
+			print(self.sender().error())
+			return
+		try:
+			res = json.loads(str(self.sender().readAll()))
+			for b in res:
+				for h in b['hashes']:
+					if h in hashes.keys():
+						hashes[h].status.exists.set_value(True)
+						hashes[h].updated.emit()
+			for u in hashes.values():
+				if not u.status.exists.known():
+					u.status.exists.set_value(False)
+					u.updated.emit()
+			return
+		except Exception as e:
+			print(e)
+			return
+			
 
 	def forcecheck(self, path):
 		self.get_uploader(path).forcecheck()
@@ -138,8 +182,6 @@ class UploadController(QObject):
 	def upload(self, path):
 		self.get_uploader(path).upload()
 
-#	def onUpdated(self):
-#		self.updated.emit()
 
 
 import resource
@@ -177,28 +219,9 @@ class Uploader(QObject):
 		self.path = path
 		self.status = Status()
 		self.progress = 0
-		self.lock = threading.RLock() #FIXME I hope it works with qt threads
+		self.lock = threading.RLock()
 		self.need_upload = False
 		self.hash = None
-		self.hashed.connect(self.__check__)
-
-
-	def forcecheck(self):
-		with self.lock:
-			if self.status.inprocess:
-				return
-			self.status = Status()
-			self.check()
-
-	def check(self):
-		with self.lock:
-			if self.status.inprocess:
-				return
-			if self.status.exists.known():
-				return
-			self.status.inprocess = True
-			r = My_Runnable(lambda: self.__hash__())
-			self.parent().pool.start(r)
 
 
 	def upload(self):
@@ -210,7 +233,7 @@ class Uploader(QObject):
 			if not self.status.exists.known():
 				self.status.inprocess = True
 				self.need_upload = True
-				r = My_Runnable(lambda: self.__hash__())
+				r = My_Runnable(lambda: self.__hash__(True))
 				self.parent().pool.start(r)
 			elif not self.status.exists.value():
 				self.status.inprocess = True
@@ -269,15 +292,15 @@ class Uploader(QObject):
 		self.reply = self.parent().manager.get(self.request)
 		self.reply.finished.connect(self.onCheck)
 
-	def __hash__(self):
-		hasher = hashlib.sha1()
-		with open(self.path, 'rb') as afile:
-			buf = afile.read(BLOCKSIZE)
-			while len(buf) > 0:
-				hasher.update(buf)
+	def prepare_hash(self):
+		if not self.hash:
+			hasher = hashlib.sha1()
+			with open(self.path, 'rb') as afile:
 				buf = afile.read(BLOCKSIZE)
-		self.hash = hasher.hexdigest()
-		self.hashed.emit()
+				while len(buf) > 0:
+					hasher.update(buf)
+					buf = afile.read(BLOCKSIZE)
+			self.hash = hasher.hexdigest()
 
 	def __onCheck__(self, sender):
 		if sender.error() != 0:

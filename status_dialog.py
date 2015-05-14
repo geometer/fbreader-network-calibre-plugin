@@ -106,12 +106,10 @@ class StatusDialog(QDialog):
 		buttons.addWidget(self.bclose)
 		layout.addLayout(buttons)
 		self.setLayout(layout)
-		thread = Thread(target = lambda: self.checkall())
-		thread.start()
+		self.checkall()
 
 	def checkall(self):
-		for p in self.paths:
-			self.controller.forcecheck(p[0])
+		self.controller.check_all(self.paths)
 		self.update()
 
 	def closeEvent(self, event):
@@ -120,8 +118,9 @@ class StatusDialog(QDialog):
 	def start(self):
 		for r in self.rows:
 			if r.cbox.isChecked():
-				r.cbox.setChecked(False)
-				r.uploader.upload()
+				pass
+#				r.cbox.setChecked(False)
+#				r.uploader.upload()
 
 	def onFormatChanged(self, f):
 		self.filter.format_filter = f
