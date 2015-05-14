@@ -118,7 +118,7 @@ class UploadController(QObject):
 		self.uploaders = {}
 		self.manager = QNetworkAccessManager(self)
 		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
-		self.reply = None
+		self.replies = set()
 		self.request = None
 		self.hashed.connect(self.onHash)
 
@@ -132,6 +132,7 @@ class UploadController(QObject):
 		hashes = {}
 		for p in paths:
 			u = self.get_uploader(p[0])
+			u.status.inprocess = True
 			if not u.hash:
 				u.prepare_hash()
 			hashes[u.hash] = u
@@ -146,39 +147,45 @@ class UploadController(QObject):
 	def onHash(self, hashes): #TODO: some synchronization?
 		url = BASE_URL + "app/books.by.hashes?hashes=" #FIXME: better post parameters processing
 		for h in hashes.keys():
-			url += (h + '&')
+			url += (h + ',')
 		url = url[:-1]
+		print(url)
 		self.request = QNetworkRequest(QUrl(url))
-		self.reply = self.manager.get(self.request)
-		self.reply.finished.connect(lambda: self.onCheck(hashes))
+		reply = self.manager.get(self.request)
+		reply.finished.connect(lambda: self.onCheck(hashes))
+		self.replies.add(reply)
 
 	def onCheck(self, hashes):
-		if self.sender().error() != 0:
-			print(self.sender().error())
+		r = self.sender()
+		if r.error() != 0:
+			print(r.error())
 			return
 		try:
-			res = json.loads(str(self.sender().readAll()))
+			res = json.loads(str(r.readAll()))
+			self.replies.remove(r)
+			r.deleteLater()
 			for b in res:
 				for h in b['hashes']:
+					print('===')
+					print(h)
+					print('===')
 					if h in hashes.keys():
+						print(hashes[h].path)
 						hashes[h].status.exists.set_value(True)
+						hashes[h].status.inprocess = False
 						hashes[h].updated.emit()
+			print('---')
 			for u in hashes.values():
 				if not u.status.exists.known():
+					print(u.path)
 					u.status.exists.set_value(False)
+					u.status.inprocess = False
 					u.updated.emit()
 			return
 		except Exception as e:
 			print(e)
 			return
 			
-
-	def forcecheck(self, path):
-		self.get_uploader(path).forcecheck()
-
-	def check(self, path):
-		self.get_uploader(path).check()
-
 	def upload(self, path):
 		self.get_uploader(path).upload()
 
@@ -220,44 +227,18 @@ class Uploader(QObject):
 		self.status = Status()
 		self.progress = 0
 		self.lock = threading.RLock()
-		self.need_upload = False
 		self.hash = None
 
 
 	def upload(self):
 		with self.lock:
 			if self.status.inprocess:
-				self.need_upload = True
-				self.updated.emit()
 				return
 			if not self.status.exists.known():
-				self.status.inprocess = True
-				self.need_upload = True
-				r = My_Runnable(lambda: self.__hash__(True))
-				self.parent().pool.start(r)
+				return
 			elif not self.status.exists.value():
 				self.status.inprocess = True
 				self.__upload__()
-			self.updated.emit()
-
-	def onCheck(self):
-		self.onCheckAndMaybeUpload(self.need_upload, self.sender())
-
-#	def onCheckAndUpload(self):
-#		self.onCheckAndMaybeUpload(True, self.sender())
-
-	def onCheckAndMaybeUpload(self, upload, sender):
-		with self.lock:
-			self.__onCheck__(sender)
-			if upload and (not self.status.error) and (not self.status.exists.value):
-				self.status.inprocess = True
-				self.reply.deleteLater()
-				self.reply = None
-				self.__upload__()
-			else:
-				self.status.inprocess = False
-				self.reply.deleteLater()
-				self.reply = None
 			self.updated.emit()
 
 	def onUpload(self):
@@ -286,12 +267,6 @@ class Uploader(QObject):
 			self.status.error = True
 			return
 
-	def __check__(self):
-		self.referer = BASE_URL + "app/book.status.by.hash?sha1=" + self.hash
-		self.request = QNetworkRequest(QUrl(self.referer))
-		self.reply = self.parent().manager.get(self.request)
-		self.reply.finished.connect(self.onCheck)
-
 	def prepare_hash(self):
 		if not self.hash:
 			hasher = hashlib.sha1()
@@ -301,27 +276,6 @@ class Uploader(QObject):
 					hasher.update(buf)
 					buf = afile.read(BLOCKSIZE)
 			self.hash = hasher.hexdigest()
-
-	def __onCheck__(self, sender):
-		if sender.error() != 0:
-			self.status.error = True
-			return
-		try:
-			res = json.loads(str(sender.readAll()))
-			if res["status"] == "found":
-				self.status.exists.set_value(True)
-				return
-		except Exception as e:
-			self.status.error = True
-			return
-		self.csrftoken = None
-		for c in self.parent().manager.cookieJar().allCookies():
-			if str(c.domain()) == DOMAIN and str(c.name()) == "csrftoken":
-				self.csrftoken = str(c.value())
-		if not self.csrftoken:
-			self.status.error = True
-			return
-		self.status.exists.set_value(False)
 
 	def __upload__(self):
 		self.multiPart = QHttpMultiPart(QHttpMultiPart.FormDataType, self)
