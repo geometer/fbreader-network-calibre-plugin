@@ -133,6 +133,8 @@ class UploadController(QObject):
 		hashes = {}
 		for p in paths:
 			u = self.get_uploader(p[0])
+			if u.status.error:
+				u.status = Status()
 			if u.status.inprocess or u.status.exists.known():
 				u.updated.emit()
 			else:
