@@ -22,6 +22,8 @@ import urllib2
 import os
 import threading
 from threading import Thread
+from datetime import datetime
+from time import sleep
 
 from .status_dialog import StatusDialog, Status
 
@@ -112,6 +114,7 @@ class UploadController(QObject):
 
 
 	hashed = pyqtSignal(object)
+	hashed1 = pyqtSignal(object)
 
 	CHECK_NUM = 90
 
@@ -130,23 +133,30 @@ class UploadController(QObject):
 		return self.uploaders[p]
 
 	def hash_all(self, paths):
+		print('hash start' + str(datetime.now()))
 		hashes = {}
+		hasheslist = []
 		for p in paths:
 			u = self.get_uploader(p[0])
-			if u.status.error:
+			if not u.status.inprocess:
 				u.status = Status()
-			if u.status.inprocess or u.status.exists.known():
-				u.updated.emit()
-			else:
 				u.status.inprocess = True
-				u.updated.emit()
+#				u.updated.emit()
 				if not u.hash:
 					u.prepare_hash()
+#				else:
+#					sleep(0.01)
 				hashes[u.hash] = u
 				if len(hashes.keys()) >= self.CHECK_NUM:
-					self.hashed.emit(hashes)
+#					self.hashed.emit(hashes)
+					hasheslist.append(hashes)
 					hashes = {}
-		self.hashed.emit(hashes)
+			else:
+				u.updated.emit()
+		hasheslist.append(hashes)
+		self.hashed.emit(hasheslist)
+#		self.hashed1.emit()
+		print('hashed' + str(datetime.now()))
 		
 
 	def check_all(self, paths):
@@ -154,7 +164,12 @@ class UploadController(QObject):
 		thread.start()
 
 
-	def onHash(self, hashes): #TODO: some synchronization?
+	def onHash(self, hasheslist): #TODO: some synchronization?
+		for hashes in hasheslist:
+			self.onHashInternal(hashes)
+
+	def onHashInternal(self, hashes):
+		print('some hashed...' + str(datetime.now()))
 		url = BASE_URL + "app/books.by.hashes?hashes=" #FIXME: better post parameters processing
 		for h in hashes.keys():
 			url += (h + ',')
@@ -163,8 +178,10 @@ class UploadController(QObject):
 		reply = self.manager.get(request)
 		reply.finished.connect(lambda: self.onCheck(hashes))
 		self.replies.add(reply)
+		print('some checking...' + str(datetime.now()))
 
 	def onCheck(self, hashes):
+		print('some checked...' + str(len(hashes.keys())) + str(datetime.now()))
 		r = self.sender()
 		if r.error() != 0:
 			print(r.error())

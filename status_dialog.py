@@ -7,14 +7,18 @@ __copyright__ = '2015, FBReader.ORG Limited <support@fbreader.org>'
 
 from PyQt5.Qt import *
 from threading import Thread
+from datetime import datetime
 
 class StatusDialog(QDialog):
+
+	inited = pyqtSignal()
 
 	def __init__(self, controller, paths, parent = None):
 		QDialog.__init__(self, parent)
 		self.paths = paths
 		self.todo = len(paths)
 		self.controller = controller
+		self.controller.hashed1.connect(self.update_all)
 		self.settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "fbreader", "gui")
 		self.filter = Filter()
 		formats = []
@@ -82,7 +86,7 @@ class StatusDialog(QDialog):
 			p = pb.palette()
 			p.setColor(QPalette.Highlight, StatusRow.color_darkgood)
 			pb.setPalette(p)
-			pb.setFormat("Unknown")
+			pb.setFormat("Checking")
 			self.tableWidget.setItem(j, 3, itemp)
 			self.tableWidget.setCellWidget(j, 3, pb)
 			items.append(itemp)
@@ -107,11 +111,25 @@ class StatusDialog(QDialog):
 		layout.addLayout(buttons)
 		self.load_filter(fcbox, scbox)
 		self.setLayout(layout)
-		self.checkall()
+
+	def exec_(self):
+		QTimer.singleShot(10, self.checkall)
+		QDialog.exec_(self)
+		
 
 	def checkall(self):
+		print('checkall' + str(datetime.now()))
 		self.controller.check_all(self.paths)
 		self.update()
+
+	def update_all(self):
+		print('updateall' + str(datetime.now()))
+		thread = Thread(target = lambda: self.update_all_internal())
+		thread.start()
+
+	def update_all_internal(self):
+		for r in self.rows:
+			r.update()
 
 	def closeEvent(self, event):
 		self.settings.setValue("StatusDialogGeometry", self.saveGeometry())
@@ -183,6 +201,7 @@ class StatusRow():
 		self.dialog = d
 
 	def update(self):
+		print('row updated ' + str(datetime.now()) + str(self))
 		text = ''
 		lightcolor = Qt.white
 		darkcolor = self.color_darkgood
