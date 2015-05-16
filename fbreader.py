@@ -124,7 +124,7 @@ class UploadController(QObject):
 		self.manager = QNetworkAccessManager(self)
 		self.manager.setCookieJar(MyNetworkCookieJar(False, self))
 		self.replies = set()
-		self.hashed.connect(self.onHash)
+		self.hashed.connect(self.onHashInternal)
 
 	def get_uploader(self, p):
 		if p not in self.uploaders.keys():
@@ -138,23 +138,25 @@ class UploadController(QObject):
 		hasheslist = []
 		for p in paths:
 			u = self.get_uploader(p[0])
-			if not u.status.inprocess:
-				u.status = Status()
-				u.status.inprocess = True
-#				u.updated.emit()
-				if not u.hash:
-					u.prepare_hash()
-#				else:
-#					sleep(0.01)
-				hashes[u.hash] = u
-				if len(hashes.keys()) >= self.CHECK_NUM:
-#					self.hashed.emit(hashes)
-					hasheslist.append(hashes)
-					hashes = {}
-			else:
-				u.updated.emit()
+			with u.lock:
+				if not u.status.inprocess:
+					u.status = Status()
+					u.status.inprocess = True
+	#				u.updated.emit()
+					if not u.hash:
+						u.prepare_hash()
+	#				else:
+	#					sleep(0.01)
+					hashes[u.hash] = u
+					if len(hashes.keys()) >= self.CHECK_NUM:
+						self.hashed.emit(hashes)
+						hasheslist.append(hashes)
+						hashes = {}
+				else:
+					u.updated.emit()
+		self.hashed.emit(hashes)
 		hasheslist.append(hashes)
-		self.hashed.emit(hasheslist)
+#		self.hashed.emit(hasheslist)
 #		self.hashed1.emit()
 		print('hashed' + str(datetime.now()))
 		
@@ -197,15 +199,18 @@ class UploadController(QObject):
 			for b in res:
 				for h in b['hashes']:
 					if h in hashes.keys():
-						hashes[h].status.exists.set_value(True)
-						hashes[h].status.inprocess = False
-						hashes[h].updated.emit()
+						u = hashes[h]
+						with u.lock:
+							u.status.exists.set_value(True)
+							u.status.inprocess = False
+							u.updated.emit()
 			for u in hashes.values():
 				u.csrftoken = csrftoken
-				if not u.status.exists.known():
-					u.status.exists.set_value(False)
-					u.status.inprocess = False
-					u.updated.emit()
+				with u.lock:
+					if not u.status.exists.known():
+						u.status.exists.set_value(False)
+						u.status.inprocess = False
+						u.updated.emit()
 			return
 		except Exception as e:
 			print(e)

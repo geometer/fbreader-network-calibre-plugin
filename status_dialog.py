@@ -197,11 +197,15 @@ class StatusRow():
 		self.pbar = pb
 		self.cbox = cb
 		self.uploader = up
-		self.uploader.updated.connect(self.update)
+		self.uploader.updated.connect(self.update_async)
 		self.dialog = d
 
+	def update_async(self):
+		thread = Thread(target = lambda: self.update())
+		thread.start()
+
 	def update(self):
-		print('row updated ' + str(datetime.now()) + str(self))
+		print('row updated1 ' + str(datetime.now()) + str(self))
 		text = ''
 		lightcolor = Qt.white
 		darkcolor = self.color_darkgood
@@ -250,16 +254,24 @@ class StatusRow():
 				else:
 					text = "Unknown"
 		p = self.pbar.palette()
+		print('row updated2 ' + str(datetime.now()) + str(self))
 		p.setColor(QPalette.Highlight, darkcolor)
+		print('row updated3 ' + str(datetime.now()) + str(self))
 		self.pbar.setPalette(p)
 		self.pbar.setFormat(text)
 		self.pbar.setValue(progress)
 		self.pbar.setToolTip(tooltip)
-		self.items[0].setBackground(lightcolor)
-		self.items[1].setBackground(lightcolor)
-		self.items[2].setBackground(lightcolor)
+		print('row updated4 ' + str(datetime.now()) + str(self))
+#		self.items[0].setBackground(lightcolor)
+#		self.items[1].setBackground(lightcolor)
+#		self.items[2].setBackground(lightcolor)
+		print('row updated5 ' + str(datetime.now()) + str(self))
 		self.items[3].compvalue = self.uploader.status.compare_value()
+		print('row updated6 ' + str(datetime.now()) + str(self))
 		self.dialog.applyfilter(self.items[0].row())
+		print('row updated7 ' + str(datetime.now()) + str(self))
+		self.pbar.update()
+		
 
 class CBoxItem(QTableWidgetItem):
 	def __init__(self, cb):
