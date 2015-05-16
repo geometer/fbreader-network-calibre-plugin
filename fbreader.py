@@ -47,9 +47,9 @@ class FBReaderSyncAction(InterfaceAction):
 
 	def upload(self):
 		rows = self.gui.library_view.selectionModel().selectedRows()
-		if not rows or len(rows) == 0:
-			return error_dialog(self.gui, 'No books selected',
-								'Please select one or more books to perform this action.', show=True)
+#		if not rows or len(rows) == 0:
+#			return error_dialog(self.gui, 'No books selected',
+#								'Please select one or more books to perform this action.', show=True)
 		login = self.check_login()
 		if login == 1:#not authorized
 			msgBox = QMessageBox()
@@ -63,17 +63,25 @@ class FBReaderSyncAction(InterfaceAction):
 			return error_dialog(self.gui, 'Error', 'Something went wrong', show=True)
 		book_ids = self.gui.library_view.get_selected_ids()
 		db = self.gui.library_view.model().db
+		model = self.gui.library_view.model()
+		all_ids = []
+		
+		for i in range(model.rowCount(None)):
+			all_ids.append(model.id(i))
 
 		paths = []
+		allpaths = []
 
-		for book_id in book_ids:
+		for book_id in all_ids:
 			mi = db.get_metadata(book_id, index_is_id=True, get_user_categories=False)
 			title, formats = mi.title, mi.formats
 			for f in formats:
 				path = db.format_abspath(book_id, f, index_is_id=True)
 				name = title
-				paths.append((path, name, f))
-		StatusDialog(self.controller, paths, self.gui).exec_()
+				allpaths.append((path, name, f))
+				if book_id in book_ids:
+					paths.append(path)
+		StatusDialog(self.controller, allpaths, paths, self.gui).exec_()
 
 	def open(self):
 		from calibre.gui2.store.web_store_dialog import WebStoreDialog

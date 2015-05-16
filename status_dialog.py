@@ -13,16 +13,17 @@ class StatusDialog(QDialog):
 
 	inited = pyqtSignal()
 
-	def __init__(self, controller, paths, parent = None):
+	def __init__(self, controller, allpaths, paths, parent = None):
 		QDialog.__init__(self, parent)
+		self.allpaths = allpaths
 		self.paths = paths
-		self.todo = len(paths)
+#		self.todo = len(allpaths)
 		self.controller = controller
 		self.controller.hashed1.connect(self.update_all)
 		self.settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "fbreader", "gui")
 		self.filter = Filter()
 		formats = []
-		for p in self.paths:
+		for p in self.allpaths:
 			f = p[2]
 			if f not in formats:
 				formats.append(f)
@@ -54,10 +55,10 @@ class StatusDialog(QDialog):
 
 		layout.addLayout(filter_layout)
 
-		self.tableWidget = QTableWidget(len(paths), 4, self)
+		self.tableWidget = QTableWidget(len(allpaths), 4, self)
 		self.tableWidget.setHorizontalHeaderLabels(('Select', 'Book', 'Format', 'Status'))
 		self.rows = []
-		for j in xrange(len(self.paths)):
+		for j in xrange(len(self.allpaths)):
 			cb = QCheckBox()
 			cb.setStyleSheet("margin-left:25%; margin-right:25%;")
 			items = []
@@ -66,12 +67,12 @@ class StatusDialog(QDialog):
 			self.tableWidget.setItem(j, 0, itemc)
 			items.append(itemc)
 			self.tableWidget.setCellWidget(j, 0, cb)
-			itemt = QTableWidgetItem(paths[j][1])
+			itemt = QTableWidgetItem(allpaths[j][1])
 			itemt.setFlags(Qt.NoItemFlags)
 			itemt.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 1, itemt)
 			items.append(itemt)
-			itemf = QTableWidgetItem(paths[j][2])
+			itemf = QTableWidgetItem(allpaths[j][2])
 			itemf.setFlags(Qt.NoItemFlags)
 			itemf.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 2, itemf)
@@ -90,7 +91,7 @@ class StatusDialog(QDialog):
 			self.tableWidget.setItem(j, 3, itemp)
 			self.tableWidget.setCellWidget(j, 3, pb)
 			items.append(itemp)
-			row = StatusRow(self, items, pb, cb, self.controller.get_uploader(paths[j][0]))
+			row = StatusRow(self, items, pb, cb, self.controller.get_uploader(allpaths[j][0]))
 			self.rows.append(row)
 		self.tableWidget.verticalHeader().hide()
 		self.tableWidget.resizeColumnsToContents()
@@ -119,7 +120,7 @@ class StatusDialog(QDialog):
 
 	def checkall(self):
 		print('checkall' + str(datetime.now()))
-		self.controller.check_all(self.paths)
+		self.controller.check_all(self.allpaths)
 		self.update()
 
 	def update_all(self):
@@ -249,7 +250,7 @@ class StatusRow():
 						progress = 100
 					else:
 						self.cbox.setEnabled(True)
-						self.cbox.setChecked(True)
+						self.cbox.setChecked(self.uploader.path in self.dialog.paths)
 						text = "Ready"
 				else:
 					text = "Unknown"
