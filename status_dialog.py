@@ -57,23 +57,24 @@ class StatusDialog(QDialog):
 
 		self.tableWidget = QTableWidget(len(allpaths), 4, self)
 		self.tableWidget.setHorizontalHeaderLabels(('Select', 'Book', 'Format', 'Status'))
+		self.tableWidget.setSelectionBehavior(QAbstractItemView.SelectRows)
 		self.rows = []
 		for j in xrange(len(self.allpaths)):
 			cb = QCheckBox()
 			cb.setStyleSheet("margin-left:25%; margin-right:25%;")
 			items = []
 			itemc = CBoxItem(cb)
-			itemc.setFlags(Qt.NoItemFlags)
+#			itemc.setFlags(Qt.NoItemFlags)
 			self.tableWidget.setItem(j, 0, itemc)
 			items.append(itemc)
 			self.tableWidget.setCellWidget(j, 0, cb)
 			itemt = QTableWidgetItem(allpaths[j][1])
-			itemt.setFlags(Qt.NoItemFlags)
+#			itemt.setFlags(Qt.NoItemFlags)
 			itemt.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 1, itemt)
 			items.append(itemt)
 			itemf = QTableWidgetItem(allpaths[j][2])
-			itemf.setFlags(Qt.NoItemFlags)
+#			itemf.setFlags(Qt.NoItemFlags)
 			itemf.setForeground(QColor(0,0,0))
 			self.tableWidget.setItem(j, 2, itemf)
 			items.append(itemf)
@@ -82,7 +83,7 @@ class StatusDialog(QDialog):
 			pb.setMaximum(100)
 			pb.setValue(50)
 			itemp = PBarItem()
-			itemp.setFlags(Qt.NoItemFlags)
+#			itemp.setFlags(Qt.NoItemFlags)
 			itemp.setForeground(QColor(0,0,0))
 			p = pb.palette()
 			p.setColor(QPalette.Highlight, StatusRow.color_darkgood)
@@ -198,7 +199,7 @@ class StatusRow():
 		self.pbar = pb
 		self.cbox = cb
 		self.uploader = up
-		self.uploader.updated.connect(self.update_async)
+		self.uploader.updated.connect(self.update)
 		self.dialog = d
 
 	def update_async(self):
