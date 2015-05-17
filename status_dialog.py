@@ -103,6 +103,9 @@ class StatusDialog(QDialog):
 		self.tableWidget.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
 
 		self.tableWidget.setSortingEnabled(True)
+		self.tableWidget.setContextMenuPolicy(Qt.CustomContextMenu)
+		self.tableWidget.customContextMenuRequested.connect(self.customMenuRequested)
+
 		buttons = QHBoxLayout()
 		self.bstart = QPushButton("Start!")
 		self.bclose = QPushButton("Close")
@@ -113,6 +116,33 @@ class StatusDialog(QDialog):
 		layout.addLayout(buttons)
 		self.load_filter(fcbox, scbox)
 		self.setLayout(layout)
+		self.checkAction = QAction("Check", self)
+		self.unCheckAction = QAction("Uncheck", self)
+		self.xorCheckAction = QAction("Invert checking", self)
+		self.checkAction.triggered.connect(lambda: self.check('check'))
+		self.unCheckAction.triggered.connect(lambda: self.check('uncheck'))
+		self.xorCheckAction.triggered.connect(lambda: self.check('invert'))
+
+	def check(self, s):
+		rows = []
+		for item in self.tableWidget.selectedItems():
+			if item.row() not in rows:
+				rows.append(item.row())
+		for r in rows:
+			cb = self.tableWidget.cellWidget(r, 0)
+			if s == 'check':
+				cb.setChecked(True)
+			elif s == 'uncheck':
+				cb.setChecked(False)
+			elif s == 'invert':
+				cb.setChecked(not cb.isChecked())
+
+	def customMenuRequested(self, pos):
+		menu = QMenu(self)
+		menu.addAction(self.checkAction)
+		menu.addAction(self.unCheckAction)
+		menu.addAction(self.xorCheckAction)
+		menu.popup(self.tableWidget.viewport().mapToGlobal(pos))
 
 	def exec_(self):
 		QTimer.singleShot(10, self.checkall)
