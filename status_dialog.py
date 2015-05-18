@@ -130,12 +130,13 @@ class StatusDialog(QDialog):
 				rows.append(item.row())
 		for r in rows:
 			cb = self.tableWidget.cellWidget(r, 0)
-			if s == 'check':
-				cb.setChecked(True)
-			elif s == 'uncheck':
-				cb.setChecked(False)
-			elif s == 'invert':
-				cb.setChecked(not cb.isChecked())
+			if cb.isEnabled():
+				if s == 'check':
+					cb.setChecked(True)
+				elif s == 'uncheck':
+					cb.setChecked(False)
+				elif s == 'invert':
+					cb.setChecked(not cb.isChecked())
 
 	def customMenuRequested(self, pos):
 		menu = QMenu(self)
